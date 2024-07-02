@@ -1,0 +1,247 @@
+﻿@page "/LoaiSP"
+@using web.Service
+@using web.Models
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+@inject LoaiSanPhamService LoaiSanPhamService
+@rendermode InteractiveServer
+
+<h3>Loại Sản Phẩm</h3>
+
+@if (Lsp == null)
+{
+    <p>Đang tải...</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Mã loại sản phẩm</th>
+                <th>Tên loại sản phẩm</th>
+                <th>Ghi chú</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var loaisp in Lsp)
+            {
+                <tr>
+                    <td>@loaisp.Ma_LSP</td>
+                    <td>@loaisp.Ten_LSP</td>
+                    <td>@loaisp.Ghi_Chu</td>
+                    <td>
+                        <button class="btn btn-primary" @onclick="() => EditLoaiSP(loaisp)">Sửa</button>
+                        <button class="btn btn-danger" @onclick="() => DeleteLoaiSP(loaisp.Auto_ID)">Xóa</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+<button class="btn btn-success" @onclick="AddLoaiSP">Thêm loại sản phẩm</button>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        @errorMessage
+    </div>
+}
+
+@if (IsEditMode || IsAddMode)
+{
+    <h3> @(IsEditMode ? "Sửa loại sản phẩm" : "Thêm loại sản phẩm")</h3>
+
+    <EditForm Model="currentLoaiSanPham" OnValidSubmit="HandleValidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="form-group">
+            <label for="MaLSP">Mã loại sản phẩm</label>
+            <InputText id="MaLSP" class="form-control w-25" @bind-Value="currentLoaiSanPham.Ma_LSP"  />
+        </div>
+
+        <div class="form-group">
+            <label for="TenLSP">Tên loại sản phẩm</label>
+            <InputText id="TenLSP" class="form-control w-25" @bind-Value="currentLoaiSanPham.Ten_LSP" />
+        </div>
+
+       <div class="form-group">
+    <label for="GhiChu">Ghi chú</label>
+    <InputTextArea id="GhiChu" class="form-control w-25" @bind-Value="currentLoaiSanPham.Ghi_Chu" />
+</div>
+
+        <br>
+        <button type="submit" class="btn btn-primary">Lưu</button>
+        <button type="button" class="btn btn-secondary" @onclick="Cancel">Hủy</button>
+    </EditForm>
+}
+
+@code {
+    private List<LoaiSanPham> Lsp;
+    private LoaiSanPham currentLoaiSanPham = new LoaiSanPham();
+    private LoaiSanPham loaisanphamm;
+    private bool IsEditMode = false;
+    private bool IsAddMode = false;
+    private string errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLoaiSP();
+    }
+
+    private async Task LoadLoaiSP()
+    {
+        try
+        {
+            Lsp = await LoaiSanPhamService.GetLspAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error loading LoaiSanPhams: " + ex.Message);
+        }
+    }
+
+    private void AddLoaiSP()
+    {
+        currentLoaiSanPham = new LoaiSanPham();
+        IsAddMode = true;
+        IsEditMode = false;
+        errorMessage = null;
+    }
+
+    private void EditLoaiSP(LoaiSanPham lsp)
+    {
+        loaisanphamm = new LoaiSanPham
+            {
+                Auto_ID = lsp.Auto_ID,
+                Ma_LSP = lsp.Ma_LSP,
+                Ten_LSP = lsp.Ten_LSP,
+                Ghi_Chu = lsp.Ghi_Chu
+            };
+
+        currentLoaiSanPham = new LoaiSanPham
+            {
+                Auto_ID = lsp.Auto_ID,
+                Ma_LSP = lsp.Ma_LSP,
+                Ten_LSP = lsp.Ten_LSP,
+                Ghi_Chu = lsp.Ghi_Chu
+            };
+        IsEditMode = true;
+        IsAddMode = false;
+        errorMessage = null;
+    }
+
+
+    private async Task DeleteLoaiSP(int id)
+    {
+        try
+        {
+            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Bạn có chắc chắn muốn xóa loại sản phẩm này?");
+            if (confirmed)
+            {
+                await LoaiSanPhamService.DeleteLspAsync(id);
+                await LoadLoaiSP();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private void Cancel()
+    {
+        currentLoaiSanPham = new LoaiSanPham
+            {
+                Auto_ID = loaisanphamm.Auto_ID,
+                Ma_LSP = loaisanphamm.Ma_LSP,
+                Ten_LSP = loaisanphamm.Ten_LSP,
+                Ghi_Chu = loaisanphamm.Ghi_Chu
+            };
+        IsEditMode = false;
+        IsAddMode = false;
+        errorMessage = null;
+        LoadLoaiSP();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(currentLoaiSanPham.Ma_LSP))
+            {
+                errorMessage = "Mã loại sản phẩm không được để trống.";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(currentLoaiSanPham.Ten_LSP))
+            {
+                errorMessage = "Tên loại sản phẩm không được để trống.";
+                return;
+            }
+
+            if (IsEditMode)
+            {
+                var (maLoaiExists, tenLoaiExists) = await LoaiSanPhamService.LoaiSPExistsAsync(currentLoaiSanPham.Ma_LSP, currentLoaiSanPham.Ten_LSP);
+
+                bool maLoaiChanged = currentLoaiSanPham.Ma_LSP != loaisanphamm.Ma_LSP;
+                bool tenLoaiChanged = currentLoaiSanPham.Ten_LSP != loaisanphamm.Ten_LSP;
+
+                if (maLoaiChanged && maLoaiExists)
+                {
+                    errorMessage = "Mã loại sản phẩm đã tồn tại.";
+                    return;
+                }
+
+                if (tenLoaiChanged && tenLoaiExists)
+                {
+                    errorMessage = "Tên loại sản phẩm đã tồn tại.";
+                    return;
+                }
+
+                await LoaiSanPhamService.UpdateLspAsync(currentLoaiSanPham); 
+
+              
+                await LoadLoaiSP();
+                IsEditMode = false;
+                IsAddMode = false;
+                errorMessage = null;
+            }
+            else if (IsAddMode)
+            {
+                var (maLoaiExists, tenLoaiExists) = await LoaiSanPhamService.LoaiSPExistsAsync(currentLoaiSanPham.Ma_LSP, currentLoaiSanPham.Ten_LSP);
+
+                if (maLoaiExists && tenLoaiExists)
+                {
+                    errorMessage = "Mã loại sản phẩm và tên loại sản phẩm đã tồn tại.";
+                    return;
+                }
+                else if (maLoaiExists)
+                {
+                    errorMessage = "Mã loại sản phẩm đã tồn tại.";
+                    return;
+                }
+                else if (tenLoaiExists)
+                {
+                    errorMessage = "Tên loại sản phẩm đã tồn tại.";
+                    return;
+                }
+
+                await LoaiSanPhamService.AddLspAsync(currentLoaiSanPham); 
+
+                
+                await LoadLoaiSP();
+                IsEditMode = false;
+                IsAddMode = false;
+                errorMessage = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Đã xảy ra lỗi: {ex.Message}";
+            await LoadLoaiSP();
+        }
+    }
+
+}

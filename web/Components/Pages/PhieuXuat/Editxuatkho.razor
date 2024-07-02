@@ -1,0 +1,77 @@
+﻿@page "/xuatkho/edit/{id:int}"
+@inject ApplicationDbContext DbContext
+@using Models
+@using Microsoft.EntityFrameworkCore
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<PageTitle>Hiệu chỉnh phiếu xuất</PageTitle>
+
+<h3>Hiệu chỉnh phiếu xuất</h3>
+
+@if (xuatKho == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm Model="xuatKho" OnValidSubmit="HandleValidEditPhieuXuat">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div>
+            <h4>Thông tin phiếu xuất</h4>
+            <div class="form-group">
+                <label for="soPhieuXuatKho">Số phiếu xuất:</label>
+                <InputText id="soPhieuXuatKho" class="form-control w-25" @bind-Value="xuatKho.SoPhieuXuatKho" />
+                <ValidationMessage For="@(() => xuatKho.SoPhieuXuatKho)" />
+            </div>
+            <div class="form-group">
+                <label for="khoId">Kho:</label>
+                <InputSelect id="khoId" class="form-control w-25" @bind-Value="xuatKho.KhoId">
+                    <option value="">Chọn kho</option>
+                    @foreach (var kho in khos)
+                    {
+                        <option value="@kho.Auto_ID">@kho.Ten_Kho</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="@(() => xuatKho.KhoId)" />
+            </div>
+            <div class="form-group">
+                <label for="ngayXuatKho">Ngày xuất:</label>
+                <InputDate id="ngayXuatKho" class="form-control w-25" @bind-Value="xuatKho.NgayXuatKho" DefaultValue="@DateTime.Today" />
+                <ValidationMessage For="@(() => xuatKho.NgayXuatKho)" />
+            </div>
+            <div class="form-group">
+                <label for="ghiChu">Ghi chú:</label>
+                <InputTextArea id="ghiChu" class="form-control w-25" @bind-Value="xuatKho.GhiChu" />
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-info">Lưu</button>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private XuatKho xuatKho;
+    private List<Kho> khos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        xuatKho = await DbContext.XuatKhos
+            .Include(x => x.Kho)
+            .FirstOrDefaultAsync(x => x.AutoId == Id);
+
+        khos = await DbContext.Khos.ToListAsync();
+       
+    }
+
+    private async Task HandleValidEditPhieuXuat()
+    {
+        await DbContext.SaveChangesAsync();
+        NavigationManager.NavigateTo("/xuatkho");
+    }
+}

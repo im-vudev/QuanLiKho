@@ -1,0 +1,357 @@
+﻿@page "/nhapkho/create"
+@using Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+
+<h3>Tạo Phiếu Nhập Kho Mới</h3>
+
+@if (khos == null || nccs == null || sanPhams == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm Model="nhapKho" OnValidSubmit="HandleValidSubmit" FormName="as">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="form-group">
+            <label>Số Phiếu Nhập</label>
+            <InputText id="soPhieuNhapKho" class="form-control w-25" @bind-Value="nhapKho.SoPhieuNhapKho" />
+            <ValidationMessage For="@(() => nhapKho.SoPhieuNhapKho)" />
+            @if (!string.IsNullOrEmpty(soPhieuNhapKhoError))
+            {
+                <p class="text-danger">@soPhieuNhapKhoError</p>
+            }
+        </div>
+
+        <div class="form-group">
+            <label>Kho</label>
+            <InputSelect id="khoId" class="form-control w-25" @bind-Value="nhapKho.KhoId">
+                <option value="">Chọn Kho</option>
+                @foreach (var kho in khos)
+                {
+                    <option value="@kho.Auto_ID">@kho.Ten_Kho</option>
+                }
+            </InputSelect>
+            <ValidationMessage For="@(() => nhapKho.KhoId)" />
+            @if (!string.IsNullOrEmpty(khoIdError))
+            {
+                <p class="text-danger">@khoIdError</p>
+            }
+        </div>
+
+        <div class="form-group">
+            <label>Nhà Cung Cấp</label>
+            <InputSelect id="nccId" class="form-control w-25" @bind-Value="nhapKho.NCC_Id">
+                <option value="">Chọn Nhà Cung Cấp</option>
+                @foreach (var ncc in nccs)
+                {
+                    <option value="@ncc.Auto_ID">@ncc.Ten_NCC</option>
+                }
+            </InputSelect>
+            <ValidationMessage For="@(() => nhapKho.NCC_Id)" />
+            @if (!string.IsNullOrEmpty(nccIdError))
+            {
+                <p class="text-danger">@nccIdError</p>
+            }
+        </div>
+
+        <div class="form-group">
+            <label>Ngày Nhập</label>
+            <InputDate id="ngayNhapKho" class="form-control w-25" @bind-Value="nhapKho.NgayNhapKho" />
+            <ValidationMessage For="@(() => nhapKho.NgayNhapKho)" />
+        </div>
+
+        <div class="form-group">
+            <label>Ghi Chú</label>
+            <InputTextArea id="ghiChu" class="form-control w-25" @bind-Value="nhapKho.GhiChu" />
+        </div>
+
+        <h4>Chi Tiết Phiếu Nhập</h4>
+        <button type="button" class="btn btn-primary" @onclick="AddNewDetail">Thêm Chi Tiết</button>
+
+        @if (isAddingDetail)
+        {
+            <div>
+                <h5>Thêm Chi Tiết</h5>
+                <div class="form-group">
+                    <label>Tên Sản Phẩm</label>
+                    <select id="sanPhamId" class="form-control w-25" @bind="newDetail.SanPhamId">
+                        <option value="">Chọn Sản Phẩm</option>
+                        @foreach (var sp in sanPhams)
+                        {
+                            <option value="@sp.Auto_ID">@sp.Ten_San_Pham</option>
+                        }
+                    </select>
+                    <ValidationMessage For="@(() => newDetail.SanPhamId)" />
+                </div>
+                <div class="form-group">
+                    <label>Số Lượng</label>
+                    <input type="number" id="slNhap" class="form-control w-25" @bind="newDetail.SLNhap" />
+                </div>
+                <div class="form-group">
+                    <label>Đơn Giá Nhập</label>
+                    <input type="number" id="donGiaNhap" class="form-control w-25" @bind="newDetail.DonGiaNhap" />
+                </div>
+                <button type="button" class="btn btn-primary" @onclick="SaveNewDetail">Lưu</button>
+                <button type="button" class="btn btn-secondary" @onclick="CancelNewDetail">Hủy</button>
+            </div>
+        }
+
+        @if (isEditingDetail)
+        {
+            <div>
+                <h5>Sửa Chi Tiết</h5>
+                <div class="form-group">
+                    <label>Số Lượng</label>
+                    <input type="number" id="editSlNhap" class="form-control w-25" @bind="editDetail.SLNhap" />
+                </div>
+                <div class="form-group">
+                    <label>Đơn Giá Nhập</label>
+                    <input type="number" id="editDonGiaNhap" class="form-control w-25" @bind="editDetail.DonGiaNhap" />
+                </div>
+                <button type="button" class="btn btn-primary" @onclick="SaveEditedDetail">Lưu</button>
+                <button type="button" class="btn btn-secondary" @onclick="CancelEditDetail">Hủy</button>
+            </div>
+        }
+
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Mã Sản Phẩm</th>
+                    <th>Tên Sản Phẩm</th>
+                    <th>Số Lượng</th>
+                    <th>Đơn Giá</th>
+                    <th>Trị Giá</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (tempChiTietNhapKhos != null)
+                {
+                    @foreach (var detail in tempChiTietNhapKhos.Select((value, index) => new { Value = value, Index = index }))
+                    {
+                        <tr>
+                            <td>@detail.Value.SanPhamId</td>
+                            <td>@(detail.Value.SanPham != null ? detail.Value.SanPham.Ten_San_Pham : "")</td>
+                            <td>@detail.Value.SLNhap</td>
+                            <td>@detail.Value.DonGiaNhap</td>
+                            <td>@(detail.Value.SLNhap * detail.Value.DonGiaNhap)</td>
+                            <td>
+                                <button type="button" class="btn btn-warning" @onclick="() => EditDetail(detail.Index)">Sửa</button>
+                                <button type="button" class="btn btn-danger" @onclick="() => DeleteDetail(detail.Index)">Xóa</button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <p class="text-danger">@errorMessage</p>
+        }
+
+        <button type="submit" class="btn btn-primary">Lưu Thay Đổi</button>
+    </EditForm>
+}
+
+@code {
+    private NhapKho nhapKho = new NhapKho();
+    private NhapKhoRawData newDetail = new NhapKhoRawData();
+    private NhapKhoRawData editDetail = new NhapKhoRawData();
+    private List<NhapKhoRawData> tempChiTietNhapKhos = new List<NhapKhoRawData>();
+    private List<Kho> khos;
+    private List<NCC> nccs;
+    private List<SanPham> sanPhams;
+    private bool isAddingDetail = false;
+    private bool isEditingDetail = false;
+    private int editIndex = -1;
+    private string errorMessage = "";
+    private string soPhieuNhapKhoError = "";
+    private string khoIdError = "";
+    private string nccIdError = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        khos = await DbContext.Khos.ToListAsync();
+        nccs = await DbContext.NCCs.ToListAsync();
+        sanPhams = await DbContext.SanPhams.ToListAsync();
+        nhapKho.NgayNhapKho = DateTime.Today;
+        tempChiTietNhapKhos = new List<NhapKhoRawData>();
+    }
+
+    private void AddNewDetail()
+    {
+        isAddingDetail = true;
+        isEditingDetail = false;
+        newDetail = new NhapKhoRawData { NhapKhoId = nhapKho.Auto_Id };
+    }
+
+    private void CancelNewDetail()
+    {
+        isAddingDetail = false;
+        newDetail = new NhapKhoRawData();
+    }
+
+    private void SaveNewDetail()
+    {
+        if (newDetail.SanPhamId == 0)
+        {
+            Console.WriteLine("Mã SP không được để trống");
+            return;
+        }
+
+      
+        if (newDetail.SLNhap <= 0)
+        {
+            Console.WriteLine("Số lượng nhập phải lớn hơn 0");
+            return;
+        }
+
+        if (newDetail.DonGiaNhap <= 0)
+        {
+            Console.WriteLine("Đơn giá nhập phải lớn hơn 0");
+            return;
+        }
+
+        newDetail.SanPham = sanPhams.FirstOrDefault(sp => sp.Auto_ID == newDetail.SanPhamId);
+
+        var newDetailCopy = new NhapKhoRawData
+            {
+                NhapKhoId = newDetail.NhapKhoId,
+                SanPhamId = newDetail.SanPhamId,
+                SLNhap = newDetail.SLNhap,
+                DonGiaNhap = newDetail.DonGiaNhap,
+                SanPham = newDetail.SanPham
+            };
+
+        tempChiTietNhapKhos.Add(newDetailCopy);
+
+        isAddingDetail = false;
+        newDetail = new NhapKhoRawData { NhapKhoId = nhapKho.Auto_Id };
+    }
+
+
+    private void SaveEditedDetail()
+    {
+        if (editIndex >= 0 && editIndex < tempChiTietNhapKhos.Count)
+        {
+            if (editDetail.SLNhap <= 0)
+            {
+                Console.WriteLine("Số lượng nhập phải lớn hơn 0");
+                return;
+            }
+
+            if (editDetail.DonGiaNhap <= 0)
+            {
+                Console.WriteLine("Đơn giá nhập phải lớn hơn 0");
+                return;
+            }
+
+            tempChiTietNhapKhos[editIndex].SLNhap = editDetail.SLNhap;
+            tempChiTietNhapKhos[editIndex].DonGiaNhap = editDetail.DonGiaNhap;
+
+            isEditingDetail = false;
+            editIndex = -1;
+        }
+    }
+
+
+    private void EditDetail(int index)
+    {
+        if (index >= 0 && index < tempChiTietNhapKhos.Count)
+        {
+            editIndex = index;
+
+            editDetail = new NhapKhoRawData
+                {
+                    NhapKhoId = tempChiTietNhapKhos[index].NhapKhoId,
+                    SanPhamId = tempChiTietNhapKhos[index].SanPhamId,
+                    SLNhap = tempChiTietNhapKhos[index].SLNhap,
+                    DonGiaNhap = tempChiTietNhapKhos[index].DonGiaNhap,
+                    SanPham = tempChiTietNhapKhos[index].SanPham
+                };
+
+            isEditingDetail = true;
+        }
+    }
+
+
+    private void DeleteDetail(int index)
+    {
+        if (index >= 0 && index < tempChiTietNhapKhos.Count)
+        {
+            tempChiTietNhapKhos.RemoveAt(index);
+
+            if (isEditingDetail)
+            {
+                if (editIndex == index)
+                {
+                    isEditingDetail = false;
+                    editIndex = -1;
+                }
+                else if (editIndex > index)
+                {
+                    editIndex--;
+                }
+            }
+        }
+    }
+
+    private void CancelEditDetail()
+    {
+        isEditingDetail = false;
+        editIndex = -1;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        errorMessage = "";
+        soPhieuNhapKhoError = "";
+        khoIdError = "";
+        nccIdError = "";
+
+        if (string.IsNullOrEmpty(nhapKho.SoPhieuNhapKho))
+        {
+            soPhieuNhapKhoError = "Vui lòng nhập số phiếu nhập kho.";
+            return;
+        }
+
+        if (nhapKho.KhoId == 0)
+        {
+            khoIdError = "Vui lòng chọn kho.";
+            return;
+        }
+
+        if (nhapKho.NCC_Id == 0)
+        {
+            nccIdError = "Vui lòng chọn nhà cung cấp.";
+            return;
+        }
+
+        try
+        {
+            DbContext.NhapKhos.Add(nhapKho);
+            await DbContext.SaveChangesAsync();
+
+            foreach (var detail in tempChiTietNhapKhos)
+            {
+                detail.NhapKhoId = nhapKho.Auto_Id;
+                DbContext.NhapKhoRawDatas.Add(detail);
+            }
+
+            await DbContext.SaveChangesAsync();
+
+            NavigationManager.NavigateTo("/nhapkho");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi khi lưu phiếu nhập: {ex.Message}";
+        }
+    }
+}

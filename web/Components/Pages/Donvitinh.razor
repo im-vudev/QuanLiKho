@@ -1,0 +1,204 @@
+﻿@page "/donvitinh"
+@using web.Service
+@using web.Models
+@inject DonViTinhService DonViTinhService
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<h3>Danh sách đơn vị tính</h3>
+
+@if (donViTinhs == null)
+{
+    <p>Đang tải...</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Tên đơn vị tính</th>
+                <th>Ghi chú</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var donViTinh in donViTinhs)
+            {
+                <tr>
+                    <td>@donViTinh.Ten_Don_Vi_Tinh</td>
+                    <td>@donViTinh.Ghi_Chu</td>
+                    <td>
+                        <button class="btn btn-primary" @onclick="() => EditDonViTinh(donViTinh)">Sửa</button>
+                        <button class="btn btn-danger" @onclick="() => DeleteDonViTinh(donViTinh.Auto_ID)">Xóa</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<button class="btn btn-success" @onclick="AddNewDonViTinh">Thêm đơn vị tính mới</button>
+<br />
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        @errorMessage
+    </div>
+}
+
+@if (isEditMode || isAddMode)
+{
+    <h3>@(isEditMode ? "Sửa đơn vị tính" : "Thêm đơn vị tính mới")</h3>
+
+    <EditForm Model="currentDonViTinh" OnValidSubmit="HandleValidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="form-group">
+            <label for="tenDonViTinh">Tên đơn vị tính</label>
+            <InputText id="tenDonViTinh" class="form-control w-25" @bind-Value="currentDonViTinh.Ten_Don_Vi_Tinh" />
+            <ValidationMessage For="@(() => currentDonViTinh.Ten_Don_Vi_Tinh)" />
+        </div>
+
+        <div class="form-group">
+            <label for="ghiChu">Ghi chú</label>
+            <InputText id="ghiChu" class="form-control w-25" @bind-Value="currentDonViTinh.Ghi_Chu" />
+            <ValidationMessage For="@(() => currentDonViTinh.Ghi_Chu)" />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Lưu</button>
+        <button type="button" class="btn btn-secondary" @onclick="Cancel">Hủy</button>
+    </EditForm>
+}
+
+@code {
+    private List<DonViTinh> donViTinhs;
+    private DonViTinh currentDonViTinh = new DonViTinh();
+    private DonViTinh originalDonViTinh;
+    private bool isEditMode = false;
+    private bool isAddMode = false;
+    private string errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDonViTinhs();
+    }
+
+    private async Task LoadDonViTinhs()
+    {
+        try
+        {
+            donViTinhs = await DonViTinhService.GetDonViTinhsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error loading DonViTinhs: " + ex.Message;
+        }
+    }
+
+    private void AddNewDonViTinh()
+    {
+        currentDonViTinh = new DonViTinh();
+        isAddMode = true;
+        isEditMode = false;
+        errorMessage = null;
+    }
+
+    private void EditDonViTinh(DonViTinh donViTinh)
+    {
+        originalDonViTinh = new DonViTinh
+            {
+                Auto_ID = donViTinh.Auto_ID,
+                Ten_Don_Vi_Tinh = donViTinh.Ten_Don_Vi_Tinh,
+                Ghi_Chu = donViTinh.Ghi_Chu
+            };
+        currentDonViTinh = new DonViTinh
+            {
+                Auto_ID = donViTinh.Auto_ID,
+                Ten_Don_Vi_Tinh = donViTinh.Ten_Don_Vi_Tinh,
+                Ghi_Chu = donViTinh.Ghi_Chu
+            };
+        isEditMode = true;
+        isAddMode = false;
+        errorMessage = null;
+    }
+
+    private async Task DeleteDonViTinh(int id)
+    {
+        try
+        {
+            await DonViTinhService.DeleteDonViTinhAsync(id);
+            await LoadDonViTinhs();
+        }
+        catch (InvalidOperationException ex)
+        {
+            errorMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error deleting DonViTinh: {ex.Message}";
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(currentDonViTinh.Ten_Don_Vi_Tinh))
+            {
+                errorMessage = "Tên đơn vị tính không được để trống.";
+                return;
+            }
+
+            if (isEditMode)
+            {
+                var existingDonViTinh = await DonViTinhService.GetDonViTinhByIdAsync(currentDonViTinh.Auto_ID);
+                bool tenDonViTinhChanged = existingDonViTinh != null && existingDonViTinh.Ten_Don_Vi_Tinh != currentDonViTinh.Ten_Don_Vi_Tinh;
+
+                if (tenDonViTinhChanged && DonViTinhService.DonViTinhExists(currentDonViTinh.Ten_Don_Vi_Tinh))
+                {
+                    errorMessage = "Đơn vị tính đã tồn tại.";
+                    return;
+                }
+
+                await DonViTinhService.UpdateDonViTinhAsync(currentDonViTinh);
+            }
+            else
+            {
+                if (DonViTinhService.DonViTinhExists(currentDonViTinh.Ten_Don_Vi_Tinh))
+                {
+                    errorMessage = "Đơn vị tính đã tồn tại.";
+                    return;
+                }
+
+                await DonViTinhService.AddDonViTinhAsync(currentDonViTinh);
+            }
+
+            await LoadDonViTinhs();
+
+            isAddMode = false;
+            isEditMode = false;
+            errorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Đã xảy ra lỗi: {ex.Message}";
+            await LoadDonViTinhs();
+        }
+    }
+
+    private async Task Cancel()
+    {
+        currentDonViTinh = new DonViTinh
+            {
+                Auto_ID = originalDonViTinh?.Auto_ID ?? 0,
+                Ten_Don_Vi_Tinh = originalDonViTinh?.Ten_Don_Vi_Tinh ?? "",
+                Ghi_Chu = originalDonViTinh?.Ghi_Chu ?? ""
+            };
+        isEditMode = false;
+        isAddMode = false;
+        errorMessage = null;
+        await LoadDonViTinhs();
+    }
+}

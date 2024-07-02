@@ -1,0 +1,91 @@
+﻿@page "/nhapkho/edit/{id:int}"
+@inject ApplicationDbContext DbContext
+@using Models
+@using Microsoft.EntityFrameworkCore
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<PageTitle>Hiệu Chỉnh Phiếu Nhập</PageTitle>
+
+<h3>Hiệu Chỉnh Phiếu Nhập</h3>
+
+@if (nhapKho == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm Model="nhapKho" OnValidSubmit="HandleValidEditPhieuNhap">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div>
+            <h4>Thông Tin Phiếu Nhập</h4>
+            <div class="form-group">
+                <label for="soPhieuNhapKho">Số Phiếu Nhập:</label>
+                <InputText id="soPhieuNhapKho" class="form-control w-25" @bind-Value="nhapKho.SoPhieuNhapKho" />
+                <ValidationMessage For="@(() => nhapKho.SoPhieuNhapKho)" />
+            </div>
+            <div class="form-group">
+                <label for="khoId">Kho:</label>
+                <InputSelect id="khoId" class="form-control w-25" @bind-Value="nhapKho.KhoId">
+                    <option value="">Chọn Kho</option>
+                    @foreach (var kho in khos)
+                    {
+                        <option value="@kho.Auto_ID">@kho.Ten_Kho</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="@(() => nhapKho.KhoId)" />
+            </div>
+            <div class="form-group">
+                <label for="nccId">Nhà Cung Cấp:</label>
+                <InputSelect id="nccId" class="form-control w-25" @bind-Value="nhapKho.NCC_Id">
+                    <option value="">Chọn Nhà Cung Cấp</option>
+                    @foreach (var ncc in nccs)
+                    {
+                        <option value="@ncc.Auto_ID">@ncc.Ten_NCC</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="@(() => nhapKho.NCC_Id)" />
+            </div>
+            <div class="form-group">
+                <label for="ngayNhapKho">Ngày Nhập:</label>
+                <InputDate id="ngayNhapKho" class="form-control w-25" @bind-Value="nhapKho.NgayNhapKho" DefaultValue="@DateTime.Today" />
+                <ValidationMessage For="@(() => nhapKho.NgayNhapKho)" />
+            </div>
+            <div class="form-group">
+                <label for="ghiChu">Ghi Chú:</label>
+                <InputTextArea id="ghiChu" class="form-control w-25" @bind-Value="nhapKho.GhiChu" />
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-info">Lưu</button>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private NhapKho nhapKho;
+    private List<Kho> khos;
+    private List<NCC> nccs;
+
+    protected override async Task OnInitializedAsync()
+    {
+       
+        nhapKho = await DbContext.NhapKhos
+            .Include(n => n.Kho)
+            .Include(n => n.NCC)
+            .FirstOrDefaultAsync(n => n.Auto_Id == Id);
+       
+        khos = await DbContext.Khos.ToListAsync();
+        nccs = await DbContext.NCCs.ToListAsync();
+    }
+
+    private async Task HandleValidEditPhieuNhap()
+    {
+        await DbContext.SaveChangesAsync();
+        NavigationManager.NavigateTo("nhapkho");
+    }
+}

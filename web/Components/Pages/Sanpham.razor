@@ -1,0 +1,309 @@
+﻿@page "/sanpham"
+@using web.Service
+@using web.Models
+@inject SanPhamService SanPhamService
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<h3>Quản lý Sản phẩm</h3>
+
+@if (sanPhams == null)
+{
+    <p>Đang tải...</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Mã sản phẩm</th>
+                <th>Tên sản phẩm</th>
+                <th>Loại sản phẩm</th>
+                <th>Đơn vị tính</th>
+                <th>Ghi chú</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var sanPham in sanPhams)
+            {
+                <tr>
+                    <td>@sanPham.Ma_San_Pham</td>
+                    <td>@sanPham.Ten_San_Pham</td>
+                    <td>@sanPham.LoaiSanPham.Ten_LSP</td>
+                    <td>@sanPham.DonViTinh.Ten_Don_Vi_Tinh</td>
+                    <td>@sanPham.Ghi_Chu</td>
+                    <td>
+                        <button class="btn btn-primary" @onclick="() => EditSanPham(sanPham)">Sửa</button>
+                        <button class="btn btn-danger" @onclick="() => DeleteSanPham(sanPham.Auto_ID)">Xóa</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<button class="btn btn-success" @onclick="AddNewSanPham">Thêm sản phẩm mới</button>
+<br />
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        @errorMessage
+    </div>
+}
+
+@if (isEditMode || isAddMode)
+{
+    <h3>@(isEditMode ? "Sửa Sản phẩm" : "Thêm Sản phẩm mới")</h3>
+
+    <EditForm Model="currentSanPham" OnValidSubmit="HandleValidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="form-group">
+            <label for="maSanPham">Mã sản phẩm</label>
+            <InputText id="maSanPham" class="form-control w-25" @bind-Value="currentSanPham.Ma_San_Pham" />
+        </div>
+
+        <div class="form-group">
+            <label for="tenSanPham">Tên sản phẩm</label>
+            <InputText id="tenSanPham" class="form-control w-25" @bind-Value="currentSanPham.Ten_San_Pham" />
+        </div>
+
+        <div class="form-group">
+            <label for="loaiSanPham">Loại sản phẩm</label>
+            <InputSelect id="loaiSanPham" class="form-control w-25" @bind-Value="currentSanPham.Loai_San_Pham_ID">
+                <option value="0">Chọn loại sản phẩm</option>
+                @foreach (var loaiSanPham in loaiSanPhams)
+                {
+                    <option value="@loaiSanPham.Auto_ID">@loaiSanPham.Ten_LSP</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="form-group">
+            <label for="donViTinh">Đơn vị tính</label>
+            <InputSelect id="donViTinh" class="form-control w-25" @bind-Value="currentSanPham.Don_Vi_Tinh_ID">
+                <option value="">Chọn đơn vị tính</option>
+                @foreach (var donViTinh in donViTinhs)
+                {
+                    <option value="@donViTinh.Auto_ID">@donViTinh.Ten_Don_Vi_Tinh</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="form-group">
+            <label for="ghiChu">Ghi chú</label>
+            <InputTextArea id="ghiChu" class="form-control w-25" @bind-Value="currentSanPham.Ghi_Chu" />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Lưu</button>
+        <button type="button" class="btn btn-secondary" @onclick="Cancel">Hủy</button>
+    </EditForm>
+}
+
+@code {
+    private List<SanPham> sanPhams;
+    private List<LoaiSanPham> loaiSanPhams;
+    private List<DonViTinh> donViTinhs;
+    private SanPham currentSanPham = new SanPham();
+    private SanPham originalSanPham;
+    private bool isEditMode = false;
+    private bool isAddMode = false;
+    private string errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSanPhams();
+    }
+
+    private async Task LoadSanPhams()
+    {
+        try
+        {
+            sanPhams = await SanPhamService.GetSanPhamsAsync();
+            loaiSanPhams = await SanPhamService.GetLoaiSanPhamsAsync();
+            donViTinhs = await SanPhamService.GetDonViTinhsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi khi tải danh sách sản phẩm: {ex.Message}";
+        }
+    }
+
+    private void AddNewSanPham()
+    {
+        currentSanPham = new SanPham();
+        isAddMode = true;
+        isEditMode = false;
+        errorMessage = null;
+    }
+
+    private void EditSanPham(SanPham sanPham)
+    {
+        originalSanPham = new SanPham
+        {
+            Auto_ID = sanPham.Auto_ID,
+            Ma_San_Pham = sanPham.Ma_San_Pham,
+            Ten_San_Pham = sanPham.Ten_San_Pham,
+            Loai_San_Pham_ID = sanPham.Loai_San_Pham_ID,
+            Don_Vi_Tinh_ID = sanPham.Don_Vi_Tinh_ID,
+            Ghi_Chu = sanPham.Ghi_Chu
+        };
+
+        currentSanPham = new SanPham
+        {
+                Auto_ID = sanPham.Auto_ID,
+                Ma_San_Pham = sanPham.Ma_San_Pham,
+                Ten_San_Pham = sanPham.Ten_San_Pham,
+                Loai_San_Pham_ID = sanPham.Loai_San_Pham_ID,
+                Don_Vi_Tinh_ID = sanPham.Don_Vi_Tinh_ID,
+                Ghi_Chu = sanPham.Ghi_Chu
+            };
+
+        isAddMode = false;
+        isEditMode = true;
+        errorMessage = null;
+    }
+
+    private async Task DeleteSanPham(int id)
+    {
+        try
+        {
+            
+            var existingSanPham = await SanPhamService.GetSanPhamByIdAsync(id);
+            if (existingSanPham == null)
+            {
+                errorMessage = "Không tìm thấy sản phẩm để xóa.";
+                return;
+            }
+
+            
+            // bool isUsedInOrders = await SanPhamService.IsSanPhamInUseAsync(id);
+            // if (isUsedInOrders)
+            // {
+            //     errorMessage = "Không thể xóa sản phẩm vì sản phẩm đang được sử dụng trong đơn hàng.";
+            //     return;
+            // }
+
+           
+            await SanPhamService.DeleteSanPhamAsync(id);
+
+          
+            await LoadSanPhams();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi khi xóa sản phẩm: {ex.Message}";
+        }
+    }
+
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            
+            if (string.IsNullOrWhiteSpace(currentSanPham.Ma_San_Pham) || string.IsNullOrWhiteSpace(currentSanPham.Ten_San_Pham))
+            {
+                errorMessage = "Mã Sản phẩm và Tên Sản phẩm không được để trống.";
+                return;
+            }
+
+            if (isEditMode)
+            {
+                
+                var existingSanPham = await SanPhamService.GetSanPhamByIdAsync(currentSanPham.Auto_ID);
+
+                if (existingSanPham == null)
+                {
+                    errorMessage = "Không tìm thấy sản phẩm để chỉnh sửa.";
+                    return;
+                }
+
+                
+                bool maSanPhamChanged = existingSanPham.Ma_San_Pham != currentSanPham.Ma_San_Pham;
+                bool tenSanPhamChanged = existingSanPham.Ten_San_Pham != currentSanPham.Ten_San_Pham;
+
+              
+                if (maSanPhamChanged || tenSanPhamChanged)
+                {
+                    var (maSPExists, tenSPExists) = await SanPhamService.SanPhamExistsAsync(currentSanPham.Ma_San_Pham, currentSanPham.Ten_San_Pham);
+
+                    if (maSPExists && maSanPhamChanged)
+                    {
+                        errorMessage = "Mã sản phẩm đã tồn tại.";
+                        return;
+                    }
+
+                    if (tenSPExists && tenSanPhamChanged)
+                    {
+                        errorMessage = "Tên sản phẩm đã tồn tại.";
+                        return;
+                    }
+                }
+
+                
+                await SanPhamService.UpdateSanPhamAsync(currentSanPham);
+            }
+            else if (isAddMode)
+            {
+               
+                var (maSPExists, tenSPExists) = await SanPhamService.SanPhamExistsAsync(currentSanPham.Ma_San_Pham, currentSanPham.Ten_San_Pham);
+
+                if (maSPExists)
+                {
+                    errorMessage = "Mã sản phẩm đã tồn tại.";
+                    return;
+                }
+
+                if (tenSPExists)
+                {
+                    errorMessage = "Tên sản phẩm đã tồn tại.";
+                    return;
+                }
+
+               
+                await SanPhamService.AddSanPhamAsync(currentSanPham);
+            }
+
+           
+            await LoadSanPhams();
+
+            
+            isAddMode = false;
+            isEditMode = false;
+            errorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Đã xảy ra lỗi: {ex.Message}";
+        }
+    }
+
+
+
+
+
+    private void Cancel()
+    {
+        if (isEditMode)
+        {
+            currentSanPham = new SanPham
+                {
+                    Auto_ID = originalSanPham.Auto_ID,
+                    Ma_San_Pham = originalSanPham.Ma_San_Pham,
+                    Ten_San_Pham = originalSanPham.Ten_San_Pham,
+                    Loai_San_Pham_ID = originalSanPham.Loai_San_Pham_ID,
+                    Don_Vi_Tinh_ID = originalSanPham.Don_Vi_Tinh_ID,
+                    Ghi_Chu = originalSanPham.Ghi_Chu
+                };
+        }
+
+        isEditMode = false;
+        isAddMode = false;
+        errorMessage = null;
+    }
+}
+

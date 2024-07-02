@@ -1,0 +1,325 @@
+﻿@page "/xuatkho/create"
+@using Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<h3>Tạo phiếu xuất kho mới</h3>
+
+@if (khos == null || sanPhams == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm Model="xuatKho" OnValidSubmit="HandleValidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="form-group">
+            <label>Số phiếu xuất</label>
+            <InputText id="soPhieuXuatKho" class="form-control w-25" @bind-Value="xuatKho.SoPhieuXuatKho" />
+            <ValidationMessage For="@(() => xuatKho.SoPhieuXuatKho)" />
+            @if (!string.IsNullOrEmpty(soPhieuXuatKhoError))
+            {
+                <p class="text-danger">@soPhieuXuatKhoError</p>
+            }
+        </div>
+
+        <div class="form-group">
+            <label>Kho</label>
+            <InputSelect id="khoId" class="form-control w-25" @bind-Value="xuatKho.KhoId">
+                <option value="">Chọn kho</option>
+                @foreach (var kho in khos)
+                {
+                    <option value="@kho.Auto_ID">@kho.Ten_Kho</option>
+                }
+            </InputSelect>
+            <ValidationMessage For="@(() => xuatKho.KhoId)" />
+            @if (!string.IsNullOrEmpty(khoIdError))
+            {
+                <p class="text-danger">@khoIdError</p>
+            }
+        </div>
+
+        <div class="form-group">
+            <label>Ngày xuất</label>
+            <InputDate id="ngayXuatKho" class="form-control w-25" @bind-Value="xuatKho.NgayXuatKho" />
+            <ValidationMessage For="@(() => xuatKho.NgayXuatKho)" />
+        </div>
+
+        <div class="form-group">
+            <label>Ghi chú</label>
+            <InputTextArea id="ghiChu" class="form-control w-25" @bind-Value="xuatKho.GhiChu" />
+        </div>
+
+        <h4>Chi tiết phiếu xuất</h4>
+        <button type="button" class="btn btn-primary" @onclick="AddNewDetail">Thêm chi tiết</button>
+
+        @if (isAddingDetail)
+        {
+            <div>
+                <h5>Thêm chi tiết</h5>
+                <div class="form-group">
+                    <label>Sản phẩm</label>
+                    <select id="sanPhamId" class="form-control w-25" @bind="newDetail.SanPhamId">
+                        <option value="">Chọn sản phẩm</option>
+                        @foreach (var sp in sanPhams)
+                        {
+                            <option value="@sp.Auto_ID">@sp.Ten_San_Pham</option>
+                        }
+                    </select>
+                    <ValidationMessage For="@(() => newDetail.SanPhamId)" />
+                </div>
+                <div class="form-group">
+                    <label>Số lượng</label>
+                    <input type="number" id="slXuat" class="form-control w-25" @bind="newDetail.SLXuat" />
+                </div>
+                <div class="form-group">
+                    <label>Đơn giá xuất</label>
+                    <input type="number" id="donGiaXuat" class="form-control w-25" @bind="newDetail.DonGiaXuat" />
+                </div>
+                <button type="button" class="btn btn-primary" @onclick="SaveNewDetail">Lưu</button>
+                <button type="button" class="btn btn-secondary" @onclick="CancelNewDetail">Hủy</button>
+            </div>
+        }
+
+        @if (isEditingDetail)
+        {
+            <div>
+                <h5>Sửa chi tiết</h5>
+                <div class="form-group">
+                    <label>Số lượng</label>
+                    <input type="number" id="editSlXuat" class="form-control w-25" @bind="editDetail.SLXuat" />
+                </div>
+                <div class="form-group">
+                    <label>Đơn giá xuất</label>
+                    <input type="number" id="editDonGiaXuat" class="form-control w-25" @bind="editDetail.DonGiaXuat" />
+                </div>
+                <button type="button" class="btn btn-primary" @onclick="SaveEditedDetail">Lưu</button>
+                <button type="button" class="btn btn-secondary" @onclick="CancelEditDetail">Hủy</button>
+            </div>
+        }
+
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Mã sản phẩm</th>
+                    <th>Tên sản phẩm</th>
+                    <th>Số lượng</th>
+                    <th>Đơn giá</th>
+                    <th>Trị giá</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (tempChiTietXuatKhos != null)
+                {
+                    @foreach (var detail in tempChiTietXuatKhos.Select((value, index) => new { Value = value, Index = index }))
+                    {
+                        <tr>
+                            <td>@detail.Value.SanPhamId</td>
+                            <td>@(detail.Value.SanPham != null ? detail.Value.SanPham.Ten_San_Pham : "")</td>
+                            <td>@detail.Value.SLXuat</td>
+                            <td>@detail.Value.DonGiaXuat</td>
+                            <td>@(detail.Value.SLXuat * detail.Value.DonGiaXuat)</td>
+                            <td>
+                                <button type="button" class="btn btn-warning" @onclick="() => EditDetail(detail.Index)">Sửa</button>
+                                <button type="button" class="btn btn-danger" @onclick="() => DeleteDetail(detail.Index)">Xóa</button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <p class="text-danger">@errorMessage</p>
+        }
+
+        <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+    </EditForm>
+}
+
+@code {
+    private XuatKho xuatKho = new XuatKho();
+    private XuatKhoRawData newDetail = new XuatKhoRawData();
+    private XuatKhoRawData editDetail = new XuatKhoRawData();
+    private List<XuatKhoRawData> tempChiTietXuatKhos = new List<XuatKhoRawData>();
+    private List<Kho> khos;
+    private List<SanPham> sanPhams;
+    private bool isAddingDetail = false;
+    private bool isEditingDetail = false;
+    private int editIndex = -1;
+    private string errorMessage = "";
+    private string soPhieuXuatKhoError = "";
+    private string khoIdError = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        khos = await DbContext.Khos.ToListAsync();
+        sanPhams = await DbContext.SanPhams.ToListAsync();
+        xuatKho.NgayXuatKho = DateTime.Today;
+        tempChiTietXuatKhos = new List<XuatKhoRawData>();
+    }
+
+    private void AddNewDetail()
+    {
+        isAddingDetail = true;
+        isEditingDetail = false;
+        newDetail = new XuatKhoRawData { XuatKhoId = xuatKho.AutoId };
+    }
+
+    private void CancelNewDetail()
+    {
+        isAddingDetail = false;
+        newDetail = new XuatKhoRawData();
+    }
+
+    private void SaveNewDetail()
+    {
+        if (newDetail.SanPhamId == 0)
+        {
+            Console.WriteLine("Mã SP không được để trống");
+            return;
+        }
+
+        if (newDetail.SLXuat <= 0)
+        {
+            Console.WriteLine("Số lượng xuất phải lớn hơn 0");
+            return;
+        }
+
+        if (newDetail.DonGiaXuat <= 0)
+        {
+            Console.WriteLine("Đơn giá xuất phải lớn hơn 0");
+            return;
+        }
+
+        newDetail.SanPham = sanPhams.FirstOrDefault(sp => sp.Auto_ID == newDetail.SanPhamId);
+
+        var newDetailCopy = new XuatKhoRawData
+        {
+            XuatKhoId = newDetail.XuatKhoId,
+            SanPhamId = newDetail.SanPhamId,
+            SLXuat = newDetail.SLXuat,
+            DonGiaXuat = newDetail.DonGiaXuat,
+            SanPham = newDetail.SanPham
+         };
+        tempChiTietXuatKhos.Add(newDetailCopy);
+
+        isAddingDetail = false;
+        newDetail = new XuatKhoRawData { XuatKhoId = xuatKho.AutoId };
+    }
+
+    private void SaveEditedDetail()
+    {
+        if (editIndex >= 0 && editIndex < tempChiTietXuatKhos.Count)
+        {
+            if (editDetail.SLXuat <= 0)
+            {
+                Console.WriteLine("Số lượng xuất phải lớn hơn 0");
+                return;
+            }
+
+            if (editDetail.DonGiaXuat <= 0)
+            {
+                Console.WriteLine("Đơn giá xuất phải lớn hơn 0");
+                return;
+            }
+
+            tempChiTietXuatKhos[editIndex].SLXuat = editDetail.SLXuat;
+            tempChiTietXuatKhos[editIndex].DonGiaXuat = editDetail.DonGiaXuat;
+
+            isEditingDetail = false;
+            editIndex = -1;
+        }
+    }
+
+    private void EditDetail(int index)
+    {
+        if (index >= 0 && index < tempChiTietXuatKhos.Count)
+        {
+            editIndex = index;
+
+            editDetail = new XuatKhoRawData
+                {
+                    XuatKhoId = tempChiTietXuatKhos[index].XuatKhoId,
+                    SanPhamId = tempChiTietXuatKhos[index].SanPhamId,
+                    SLXuat = tempChiTietXuatKhos[index].SLXuat,
+                    DonGiaXuat = tempChiTietXuatKhos[index].DonGiaXuat,
+                    SanPham = tempChiTietXuatKhos[index].SanPham
+                };
+
+            isEditingDetail = true;
+        }
+    }
+
+    private void DeleteDetail(int index)
+    {
+        if (index >= 0 && index < tempChiTietXuatKhos.Count)
+        {
+            tempChiTietXuatKhos.RemoveAt(index);
+
+            if (isEditingDetail)
+            {
+                if (editIndex == index)
+                {
+                    isEditingDetail = false;
+                    editIndex = -1;
+                }
+                else if (editIndex > index)
+                {
+                    editIndex--;
+                }
+            }
+        }
+    }
+
+    private void CancelEditDetail()
+    {
+        isEditingDetail = false;
+        editIndex = -1;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        errorMessage = "";
+        soPhieuXuatKhoError = "";
+        khoIdError = "";
+
+        if (string.IsNullOrEmpty(xuatKho.SoPhieuXuatKho))
+        {
+            soPhieuXuatKhoError = "Vui lòng nhập số phiếu xuất kho.";
+            return;
+        }
+
+        if (xuatKho.KhoId == 0)
+        {
+            khoIdError = "Vui lòng chọn kho.";
+            return;
+        }
+
+        try
+        {
+            DbContext.XuatKhos.Add(xuatKho);
+            await DbContext.SaveChangesAsync();
+
+            foreach (var detail in tempChiTietXuatKhos)
+            {
+                detail.XuatKhoId = xuatKho.AutoId;
+                DbContext.XuatKhoRawDatas.Add(detail);
+            }
+
+            await DbContext.SaveChangesAsync();
+
+            NavigationManager.NavigateTo("/xuatkho");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi khi lưu phiếu xuất: {ex.Message}";
+        }
+    }
+}

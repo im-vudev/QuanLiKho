@@ -1,0 +1,171 @@
+﻿@page "/baocaonhap"
+@using System.Globalization
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@rendermode InteractiveServer
+
+<h3>Báo cáo chi tiết hàng nhập</h3>
+
+<div class="search-section">
+    <label for="startDate">Từ ngày:</label>
+    <input type="date" id="startDate" @bind="startDate" />
+
+    <label for="endDate">Đến ngày:</label>
+    <input type="date" id="endDate" @bind="endDate" />
+
+    <button @onclick="SearchImports">Tìm kiếm</button>
+</div>
+
+@if (isLoading)
+{
+    <p>Đang tải dữ liệu...</p>
+}
+else if (importDetails != null && importDetails.Any())
+{
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Ngày nhập</th>
+                <th>Số phiếu nhập</th>
+                <th>NCC</th>
+                <th>Mã sản phẩm</th>
+                <th>Tên sản phẩm</th>
+                <th>SL Nhập</th>
+                <th>Đơn giá</th>
+                <th>Trị giá</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var detail in importDetails)
+            {
+                <tr>
+                    <td>@detail.NgayNhapKho.ToString("dd/MM/yyyy")</td>
+                    <td>@detail.SoPhieuNhapKho</td>
+                    <td>@detail.NCC</td>
+                    <td>@detail.MaSanPham</td>
+                    <td>@detail.TenSanPham</td>
+                    <td>@detail.SLNhap</td>
+                    <td>@detail.DonGiaNhap</td>
+                    <td>@(detail.SLNhap * detail.DonGiaNhap)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p>Không tìm thấy dữ liệu.</p>
+}
+
+@code {
+    private DateTime? startDate;
+    private DateTime? endDate;
+    private bool isLoading = false;
+    private List<ImportDetailViewModel> importDetails;
+
+    protected override async Task OnInitializedAsync()
+    {
+        startDate = DateTime.Today.AddDays(-30);
+        endDate = DateTime.Today;
+        await SearchImports();
+    }
+
+    private async Task SearchImports()
+    {
+        if (startDate == null || endDate == null)
+        {
+            return;
+        }
+
+        isLoading = true;
+
+        importDetails = await DbContext.NhapKhoRawDatas
+            .Include(i => i.NhapKho)
+            .ThenInclude(nk => nk.NCC)
+            .Include(i => i.SanPham)
+            .Where(i => i.NhapKho.NgayNhapKho >= startDate && i.NhapKho.NgayNhapKho <= endDate)
+            .Select(i => new ImportDetailViewModel
+                {
+                    NgayNhapKho = i.NhapKho.NgayNhapKho,
+                    SoPhieuNhapKho = i.NhapKho.SoPhieuNhapKho,
+                    NCC = i.NhapKho.NCC.Ten_NCC,
+                    MaSanPham = i.SanPham.Ma_San_Pham,
+                    TenSanPham = i.SanPham.Ten_San_Pham,
+                    SLNhap = i.SLNhap,
+                    DonGiaNhap = i.DonGiaNhap
+                })
+            .ToListAsync();
+
+        isLoading = false;
+    }
+
+    public class ImportDetailViewModel
+    {
+        public DateTime NgayNhapKho { get; set; }
+        public string SoPhieuNhapKho { get; set; }
+        public string NCC { get; set; }
+        public string MaSanPham { get; set; }
+        public string TenSanPham { get; set; }
+        public int SLNhap { get; set; }
+        public decimal DonGiaNhap { get; set; }
+    }
+}
+
+<style>
+    .search-section {
+        margin-bottom: 20px;
+    }
+
+        .search-section label {
+            margin-right: 10px;
+        }
+
+        .search-section input {
+            margin-right: 10px;
+            padding: 5px;
+        }
+
+        .search-section button {
+            padding: 5px 10px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+            .search-section button:hover {
+                background-color: #0056b3;
+            }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+
+        .data-table th, .data-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+
+        .data-table th {
+            background-color: #f2f2f2;
+            text-align: left;
+        }
+
+        .data-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .data-table tr:hover {
+            background-color: #ddd;
+        }
+
+        .data-table th {
+            padding-top: 12px;
+            padding-bottom: 12px;
+            background-color: #007BFF;
+            color: white;
+        }
+</style>

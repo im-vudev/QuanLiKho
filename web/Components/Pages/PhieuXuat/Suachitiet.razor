@@ -1,0 +1,327 @@
+﻿@page "/xuatkho/edit-detail/{id:int}"
+@using Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<div class="container">
+    <h3>Hiệu chỉnh chi tiết phiếu xuất kho</h3>
+
+    @if (xuatKho == null || chiTietXuatKhos == null || sanPhams == null)
+    {
+        <p><em>Đang tải...</em></p>
+    }
+    else
+    {
+        <div class="row">
+            <div class="col-md-6">
+                <h4>Thông tin phiếu xuất kho</h4>
+                <div class="form-group">
+                    <label for="soPhieuXuat">Số phiếu xuất:</label>
+                    <span>@xuatKho.SoPhieuXuatKho</span>
+                </div>
+                <div class="form-group">
+                    <label for="ngayXuat">Ngày xuất:</label>
+                    <span>@xuatKho.NgayXuatKho.ToString("dd/MM/yyyy")</span>
+                </div>
+                <div class="form-group">
+                    <label for="ghiChu">Ghi chú:</label>
+                    <span>@xuatKho.GhiChu</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-3">
+            <div class="col-md-12">
+                <h4>Danh sách chi tiết phiếu xuất kho</h4>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger" role="alert">
+                        @errorMessage
+                    </div>
+                }
+
+                <EditForm Model="@this" OnValidSubmit="SaveChanges">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Mã Sản Phẩm</th>
+                                <th>Tên Sản Phẩm</th>
+                                <th>Số Lượng</th>
+                                <th>Đơn Giá</th>
+                                <th>Trị Giá</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var detail in chiTietXuatKhos)
+                            {
+                                <tr>
+                                    <td>@detail.SanPhamId</td>
+                                    <td>
+                                        @if (detail.SanPham != null)
+                                        {
+                                            @detail.SanPham.Ten_San_Pham
+                                        }
+                                        else
+                                        {
+                                            <span>(Không có)</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (detail.AutoId == editingDetailId)
+                                        {
+                                            <input type="number" class="form-control w-25" @bind="editingDetail.SLXuat" />
+                                            <ValidationMessage For="@(() => editingDetail.SLXuat)" />
+                                        }
+                                        else
+                                        {
+                                            <span>@detail.SLXuat</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (detail.AutoId == editingDetailId)
+                                        {
+                                            <input type="number" class="form-control w-25" @bind="editingDetail.DonGiaXuat" />
+                                            <ValidationMessage For="@(() => editingDetail.DonGiaXuat)" />
+                                        }
+                                        else
+                                        {
+                                            <span>@detail.DonGiaXuat</span>
+                                        }
+                                    </td>
+                                    <td>@(detail.SLXuat * detail.DonGiaXuat)</td>
+                                    <td>
+                                        @if (detail.AutoId == editingDetailId)
+                                        {
+                                            <button type="submit" class="btn btn-primary btn-sm">Lưu</button>
+                                            <button type="button" class="btn btn-secondary btn-sm ml-1" @onclick="CancelEdit">Hủy</button>
+                                        }
+                                        else
+                                        {
+                                            <button type="button" class="btn btn-warning btn-sm" @onclick="() => BeginEdit(detail)">Sửa</button>
+                                            <button type="button" class="btn btn-danger btn-sm ml-1" @onclick="() => DeleteDetail(detail.AutoId)">Xóa</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+
+                            @if (isNewDetailFormVisible)
+                            {
+                                <tr>
+                                    <td>
+                                        <select class="form-control w-25" @bind="newDetail.SanPhamId">
+                                            <option value="">Chọn sản phẩm</option>
+                                            @foreach (var sp in sanPhams)
+                                            {
+                                                <option value="@sp.Auto_ID">@sp.Ten_San_Pham</option>
+                                            }
+                                        </select>
+                                        <ValidationMessage For="@(() => newDetail.SanPhamId)" />
+                                    </td>
+                                    <td></td>
+                                    <td>
+                                        <input type="number" class="form-control w-25" @bind="newDetail.SLXuat" />
+                                        <ValidationMessage For="@(() => newDetail.SLXuat)" />
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control w-25" @bind="newDetail.DonGiaXuat" />
+                                        <ValidationMessage For="@(() => newDetail.DonGiaXuat)" />
+                                    </td>
+                                    <td></td>
+                                    <td>
+                                        <button type="submit" class="btn btn-success btn-sm">Lưu</button>
+                                        <button type="button" class="btn btn-secondary btn-sm ml-1" @onclick="CancelNewDetail">Hủy</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <button type="button" class="btn btn-primary" @onclick="BeginAdd">Thêm Chi Tiết Mới</button>
+                </EditForm>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private XuatKho xuatKho;
+    private List<XuatKhoRawData> chiTietXuatKhos;
+    private List<SanPham> sanPhams;
+    private XuatKhoRawData editingDetail = new XuatKhoRawData();
+    private XuatKhoRawData newDetail = new XuatKhoRawData();
+    private int editingDetailId = -1;
+    private bool isNewDetailFormVisible = false;
+    private string errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        xuatKho = await DbContext.XuatKhos
+            .Include(x => x.ChiTietXuatKhos)
+            .ThenInclude(c => c.SanPham)
+            .FirstOrDefaultAsync(x => x.AutoId == Id);
+
+        if (xuatKho != null)
+        {
+            chiTietXuatKhos = xuatKho.ChiTietXuatKhos.ToList();
+            sanPhams = await DbContext.SanPhams.ToListAsync();
+        }
+    }
+
+    private void BeginEdit(XuatKhoRawData detail)
+    {
+        editingDetail = new XuatKhoRawData
+        {
+            AutoId = detail.AutoId,
+            SLXuat = detail.SLXuat,
+            DonGiaXuat = detail.DonGiaXuat,
+            SanPhamId = detail.SanPhamId,
+            SanPham = detail.SanPham
+        };
+        editingDetailId = detail.AutoId;
+    }
+
+    private async Task SaveChanges()
+    {
+        if (editingDetailId >= 0)
+        {
+            await SaveEdit();
+        }
+        else
+        {
+            await SaveNewDetail();
+        }
+    }
+
+    private async Task SaveEdit()
+    {
+        if (editingDetail.SLXuat <= 0 || editingDetail.DonGiaXuat <= 0)
+        {
+            errorMessage = "Số lượng và đơn giá phải lớn hơn 0.";
+            return;
+        }
+
+        try
+        {
+            var detail = chiTietXuatKhos.FirstOrDefault(d => d.AutoId == editingDetailId);
+            if (detail != null)
+            {
+                detail.SLXuat = editingDetail.SLXuat;
+                detail.DonGiaXuat = editingDetail.DonGiaXuat;
+
+                DbContext.Entry(detail).State = EntityState.Modified;
+
+                await DbContext.SaveChangesAsync();
+
+                editingDetailId = -1;
+                errorMessage = string.Empty;
+
+                await LoadData();
+            }
+            else
+            {
+                errorMessage = "Chi tiết phiếu xuất không tồn tại hoặc đã bị xóa.";
+            }
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            errorMessage = "Dữ liệu đã bị thay đổi bởi người dùng khác. Vui lòng tải lại trang và thử lại.";
+        }
+        catch (Exception ex)
+        {
+           
+            errorMessage = "Đã xảy ra lỗi khi lưu thay đổi. Vui lòng thử lại sau.";
+        }
+    }
+
+    private async Task SaveNewDetail()
+    {
+        if (newDetail.SanPhamId == 0 || newDetail.SLXuat <= 0 || newDetail.DonGiaXuat <= 0)
+        {
+            errorMessage = "Vui lòng điền đầy đủ thông tin cho chi tiết mới.";
+            return;
+        }
+
+        try
+        {
+            var newChiTietXuat = new XuatKhoRawData
+                {
+                    SanPhamId = newDetail.SanPhamId,
+                    SLXuat = newDetail.SLXuat,
+                    DonGiaXuat = newDetail.DonGiaXuat
+                };
+
+            xuatKho.ChiTietXuatKhos.Add(newChiTietXuat);
+
+            DbContext.XuatKhos.Update(xuatKho);
+            await DbContext.SaveChangesAsync();
+
+            isNewDetailFormVisible = false;
+            newDetail = new XuatKhoRawData();
+            errorMessage = string.Empty;
+
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Đã xảy ra lỗi khi thêm chi tiết mới. Vui lòng thử lại sau.";
+        }
+    }
+
+    private async Task DeleteDetail(int detailId)
+    {
+        try
+        {
+            var detailToRemove = chiTietXuatKhos.FirstOrDefault(d => d.AutoId == detailId);
+            if (detailToRemove != null)
+            {
+                xuatKho.ChiTietXuatKhos.Remove(detailToRemove);
+
+                DbContext.XuatKhos.Update(xuatKho);
+                await DbContext.SaveChangesAsync();
+
+                await LoadData();
+            }
+            else
+            {
+                errorMessage = "Chi tiết phiếu xuất không tồn tại hoặc đã bị xóa.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Đã xảy ra lỗi khi xóa chi tiết phiếu xuất. Vui lòng thử lại sau.";
+        }
+    }
+
+    private void BeginAdd()
+    {
+        isNewDetailFormVisible = true;
+    }
+
+    private void CancelEdit()
+    {
+        editingDetailId = -1;
+        editingDetail = new XuatKhoRawData();
+        errorMessage = string.Empty;
+    }
+
+    private void CancelNewDetail()
+    {
+        isNewDetailFormVisible = false;
+        newDetail = new XuatKhoRawData();
+        errorMessage = string.Empty;
+    }
+}

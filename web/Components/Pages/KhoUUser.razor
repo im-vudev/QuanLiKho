@@ -1,0 +1,208 @@
+﻿@page "/phanquyenkho"
+@using web.Models
+@using web.Service
+@using System.Globalization
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@rendermode InteractiveServer
+
+
+<h3>Phân quyền kho</h3>
+
+<EditForm Model="@model" OnValidSubmit="@HandleSubmit">
+    <div class="form-group">
+        <label for="khoSelect">Chọn kho:</label>
+        <select class="form-control w-25" @bind="@selectedKhoId">
+            <option value="">Chọn kho</option>
+            @foreach (var kho in khos)
+            {
+                <option value="@kho.Auto_ID">@kho.Ten_Kho</option>
+            }
+        </select>
+    </div>
+
+    @if (selectedKhoId != null)
+    {
+        <h4>Danh sách mã đăng nhập đã được phân quyền</h4>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th scope="col">Mã đăng nhập</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var khoUser in filteredKhoUsers)
+                {
+                    <tr>
+                        <td>@khoUser.User.Ma_Dang_Nhap</td>
+                        <td>
+                            <button class="btn btn-danger" @onclick="() => RemovePermission(khoUser)">Xóa phân quyền</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <div class="form-group">
+            <label for="maDangNhapSelect">Chọn mã đăng nhập mới:</label>
+            <select class="form-control w-25" @bind="@newMaDangNhap">
+                <option value="">Chọn mã đăng nhập</option>
+                @foreach (var user in users.Where(u => !filteredKhoUsers.Any(ku => ku.UserId == u.Auto_ID)))
+                {
+                    <option value="@user.Auto_ID">@user.Ma_Dang_Nhap</option>
+                }
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Thêm phân quyền</button>
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="alert alert-success">@successMessage</div>
+        }
+    }
+</EditForm>
+
+@code {
+    private KhoUser model = new KhoUser();
+    private List<Kho> khos = new List<Kho>();
+    private List<KhoUser> khoUsers = new List<KhoUser>();
+    private int? selectedKhoId;
+    private int newMaDangNhap;
+    private List<KhoUser> filteredKhoUsers
+    => khoUsers.Where(ku => ku.KhoId == selectedKhoId).ToList();
+    private List<User> users = new List<User>();
+    private string errorMessage = "";
+    private string successMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        khos = await DbContext.Khos.ToListAsync();
+        khoUsers = await DbContext.KhoUsers.Include(ku => ku.User).ToListAsync();
+        users = await DbContext.Users.ToListAsync();
+    }
+
+    private async Task HandleSubmit()
+    {
+        Console.WriteLine($"Submitted MaDangNhap: {newMaDangNhap}");
+
+        if (selectedKhoId.HasValue)
+        {
+            int khoId = selectedKhoId.Value;
+
+            if (newMaDangNhap != 0) 
+            {
+               
+                if (filteredKhoUsers.Any(ku => ku.UserId == newMaDangNhap && ku.KhoId == khoId))
+                {
+                    errorMessage = "Mã đăng nhập đã tồn tại trong kho này.";
+                    successMessage = "";
+                }
+                else
+                {
+                    var khoUser = new KhoUser
+                        {
+                            UserId = newMaDangNhap,
+                            KhoId = khoId
+                        };
+
+                    DbContext.KhoUsers.Add(khoUser);
+                    await DbContext.SaveChangesAsync();
+
+                    successMessage = "Phân quyền thành công.";
+                    errorMessage = "";
+                    await RefreshData();
+                }
+            }
+            else
+            {
+                errorMessage = "Mã đăng nhập không được để trống.";
+                successMessage = "";
+            }
+        }
+        else
+        {
+            errorMessage = "Vui lòng chọn kho.";
+            successMessage = "";
+        }
+    }
+
+
+    private async Task RemovePermission(KhoUser khoUser)
+    {
+        DbContext.KhoUsers.Remove(khoUser);
+        await DbContext.SaveChangesAsync();
+        errorMessage = "";
+        successMessage = "Xóa phân quyền thành công.";
+
+        await RefreshData();
+    }
+
+    private async Task RefreshData()
+    {
+        khoUsers = await DbContext.KhoUsers.Include(ku => ku.User).ToListAsync();
+        StateHasChanged();
+    }
+}
+<style>
+
+    ul {
+        list-style-type: none;
+        padding: 0;
+    }
+
+    li {
+        margin-bottom: 5px;
+    }
+
+
+    button {
+        background-color: #dc3545;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+        button:hover {
+            background-color: #c82333;
+        }
+
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    label {
+        display: block;
+        font-weight: bold;
+    }
+
+    select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+        font-size: 14px;
+    }
+
+
+    .btn-primary {
+        background-color: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+
+</style>

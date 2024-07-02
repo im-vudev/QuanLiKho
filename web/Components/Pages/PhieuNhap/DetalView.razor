@@ -1,0 +1,147 @@
+﻿@page "/nhapkho/detail/{id:int}"
+@using Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+@if (nhapKho == null || khos == null || nccs == null || sanPhams == null || donViTinhs == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="container">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4 class="card-title">Thông Tin Phiếu Nhập</h4>
+                        <div class="form-group row">
+                            <label class="col-sm-4 col-form-label">Số Phiếu Nhập:</label>
+                            <div class="col-sm-8">
+                                <span>@nhapKho.SoPhieuNhapKho</span>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label class="col-sm-4 col-form-label">Kho:</label>
+                            <div class="col-sm-8">
+                                <span>@khos.FirstOrDefault(k => k.Auto_ID == nhapKho.KhoId)?.Ten_Kho</span>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label class="col-sm-4 col-form-label">Nhà Cung Cấp:</label>
+                            <div class="col-sm-8">
+                                <span>@nccs.FirstOrDefault(n => n.Auto_ID == nhapKho.NCC_Id)?.Ten_NCC</span>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label class="col-sm-4 col-form-label">Ngày Nhập:</label>
+                            <div class="col-sm-8">
+                                <span>@nhapKho.NgayNhapKho.ToString("dd/MM/yyyy")</span>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label class="col-sm-4 col-form-label">Ghi Chú:</label>
+                            <div class="col-sm-8">
+                                <span>@nhapKho.GhiChu</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4 class="card-title">Chi Tiết Phiếu Nhập</h4>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Mã Sản Phẩm</th>
+                                    <th>Tên Sản Phẩm</th>
+                                    <th>Đơn Vị Tính</th>
+                                    <th>Số Lượng</th>
+                                    <th>Đơn Giá Nhập</th>
+                                    <th>Thành Tiền</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var detail in nhapKho.ChiTietNhapKhos)
+                                {
+                                    <tr>
+                                        <td>@detail.SanPhamId</td>
+                                        <td>@sanPhams.FirstOrDefault(s => s.Auto_ID == detail.SanPhamId)?.Ten_San_Pham</td>
+                                        <td>
+                                            @{
+                                                var donViTinhId = sanPhams.FirstOrDefault(s => s.Auto_ID == detail.SanPhamId)?.Don_Vi_Tinh_ID;
+                                                var tenDonViTinh = GetTenDonViTinh(donViTinhId ?? 0);
+                                                @tenDonViTinh
+                                            }
+                                        </td>
+                                        <td>@detail.SLNhap</td>
+                                        <td>@detail.DonGiaNhap</td>
+                                        <td>@(detail.SLNhap * detail.DonGiaNhap)</td>
+                                        <td><button class="btn btn-danger" @onclick="() => DeleteDetail(detail)">Xóa</button></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                        <button class="btn btn-primary" @onclick="EditDetail">Hiệu Chỉnh Chi Tiết</button>
+                        <button class="btn btn-danger" @onclick="DeleteAllDetails">Xóa Tất Cả Chi Tiết</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private NhapKho nhapKho;
+    private List<Kho> khos;
+    private List<NCC> nccs;
+    private List<SanPham> sanPhams;
+    private List<DonViTinh> donViTinhs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        nhapKho = await DbContext.NhapKhos
+            .Include(n => n.ChiTietNhapKhos)
+            .FirstOrDefaultAsync(n => n.Auto_Id == Id);
+
+        khos = await DbContext.Khos.ToListAsync();
+        nccs = await DbContext.NCCs.ToListAsync();
+        sanPhams = await DbContext.SanPhams.ToListAsync();
+        donViTinhs = await DbContext.DonViTinhs.ToListAsync();
+    }
+
+    private string GetTenDonViTinh(int donViTinhId)
+    {
+        var donViTinh = donViTinhs.FirstOrDefault(d => d.Auto_ID == donViTinhId);
+        return donViTinh?.Ten_Don_Vi_Tinh ?? "Unknown";
+    }
+
+    private async Task DeleteDetail(NhapKhoRawData detail)
+    {
+        DbContext.NhapKhoRawDatas.Remove(detail);
+        await DbContext.SaveChangesAsync();
+        NavigationManager.NavigateTo($"/nhapkho/detail/{Id}", forceLoad: true);
+    }
+
+    private void EditDetail()
+    {
+        NavigationManager.NavigateTo($"/nhapkho/edit-detail/{Id}");
+    }
+    private async Task DeleteAllDetails()
+    {
+        if (nhapKho?.ChiTietNhapKhos != null)
+        {
+            DbContext.NhapKhoRawDatas.RemoveRange(nhapKho.ChiTietNhapKhos);
+            await DbContext.SaveChangesAsync();
+            NavigationManager.NavigateTo($"/xuatkho/detail/{Id}", forceLoad: true);
+        }
+    }
+}

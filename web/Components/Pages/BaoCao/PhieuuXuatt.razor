@@ -1,0 +1,179 @@
+﻿@page "/baocaoxuat"
+@using System.Globalization
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@rendermode InteractiveServer
+
+<h3>Báo cáo chi tiết hàng xuất</h3>
+
+<div class="search-section">
+    <label for="startDate">Từ ngày:</label>
+    <input type="date" id="startDate" @bind="startDate" />
+
+    <label for="endDate">Đến ngày:</label>
+    <input type="date" id="endDate" @bind="endDate" />
+
+    <button @onclick="SearchExports">Tìm kiếm</button>
+</div>
+
+@if (isLoading)
+{
+    <p>Đang tải dữ liệu...</p>
+}
+else if (exportDetails != null && exportDetails.Any())
+{
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Ngày xuất</th>
+                <th>Số phiếu xuất</th>
+                <th>Mã sản phẩm</th>
+                <th>Tên sản phẩm</th>
+                <th>SL xuất</th>
+                <th>Đơn giá</th>
+                <th>Trị giá</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var detail in exportDetails)
+            {
+                <tr>
+                    <td>@detail.NgayXuat.ToString("dd/MM/yyyy")</td>
+                    <td>@detail.SoPhieuXuat</td>
+                    <td>@detail.MaSanPham</td>
+                    <td>@detail.TenSanPham</td>
+                    <td>@detail.SLXuat</td>
+                    <td>@detail.DonGiaXuat</td>
+                    <td>@(detail.SLXuat * detail.DonGiaXuat)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p>Không tìm thấy dữ liệu.</p>
+}
+
+@code {
+    private DateTime? startDate;
+    private DateTime? endDate;
+    private bool isLoading = false;
+    private List<ExportDetailViewModel> exportDetails;
+
+    protected override async Task OnInitializedAsync()
+    { 
+        startDate = DateTime.Today.AddDays(-30);
+        endDate = DateTime.Today;
+        await SearchExports();
+    }
+
+    private async Task SearchExports()
+    {
+        if (startDate == null || endDate == null)
+        {
+            return;
+        }
+
+        isLoading = true;
+
+        exportDetails = await DbContext.XuatKhoRawDatas
+            .Include(x => x.XuatKho)
+            .Include(x => x.SanPham)
+            .Where(x => x.XuatKho.NgayXuatKho >= startDate && x.XuatKho.NgayXuatKho <= endDate)
+            .Select(x => new ExportDetailViewModel
+                {
+                    NgayXuat = x.XuatKho.NgayXuatKho,
+                    SoPhieuXuat = x.XuatKho.SoPhieuXuatKho,
+                    MaSanPham = x.SanPham.Ma_San_Pham,
+                    TenSanPham = x.SanPham.Ten_San_Pham,
+                    SLXuat = x.SLXuat,
+                    DonGiaXuat = x.DonGiaXuat,
+                    TriGia = x.SLXuat * x.DonGiaXuat
+                })
+            .ToListAsync();
+
+        isLoading = false;
+    }
+
+    public class ExportDetailViewModel
+    {
+        public DateTime NgayXuat { get; set; }
+        public string SoPhieuXuat { get; set; }
+        public string MaSanPham { get; set; }
+        public string TenSanPham { get; set; }
+        public int SLXuat { get; set; }
+        public decimal DonGiaXuat { get; set; }
+        public decimal TriGia { get; set; }
+    }
+}
+
+<style>
+    .search-section {
+        margin-bottom: 20px;
+    }
+
+        .search-section label {
+            margin-right: 10px;
+        }
+
+        .search-section input {
+            margin-right: 20px;
+            padding: 5px;
+            font-size: 14px;
+        }
+
+        .search-section button {
+            padding: 7px 15px;
+            font-size: 14px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+            .search-section button:hover {
+                background-color: #45a049;
+            }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+
+        .data-table th, .data-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .data-table th {
+            padding-top: 12px;
+            padding-bottom: 12px;
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .data-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .data-table tr:hover {
+            background-color: #ddd;
+        }
+
+        .data-table th, .data-table td {
+            text-align: center;
+        }
+
+        .data-table td {
+            font-size: 14px;
+        }
+
+    p {
+        font-size: 16px;
+        color: #555;
+    }
+</style>

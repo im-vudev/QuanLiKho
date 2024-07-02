@@ -1,0 +1,251 @@
+﻿@page "/ncc"
+@using web.Models
+@using web.Service
+@inject NCCService NCCService
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<h3>Quản lý Nhà Cung Cấp</h3>
+
+@if (ncc == null)
+{
+    <p>Đang tải...</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Mã nhà cung cấp</th>
+                <th>Tên nhà cung cấp</th>
+                <th>Ghi chú</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var nhacungcap in ncc)
+            {
+                <tr>
+                    <td>@nhacungcap.Ma_NCC</td>
+                    <td>@nhacungcap.Ten_NCC</td>
+                    <td>@nhacungcap.Ghi_Chu</td>
+                    <td>
+                        <button class="btn btn-primary" @onclick="() => EditNCC(nhacungcap)">Sửa</button>
+                        <button class="btn btn-danger" @onclick="() => DeleteNCC(nhacungcap.Auto_ID)">Xóa</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<button class="btn btn-success" @onclick="AddNCC">Thêm Nhà Cung Cấp</button>
+<br />
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        @errorMessage
+    </div>
+}
+
+@if (isEditMode || isAddMode)
+{
+    <h3>@(isEditMode ? "Sửa Nhà Cung Cấp" : "Thêm Nhà Cung Cấp Mới")</h3>
+
+    <EditForm Model="currentNCC" OnValidSubmit="HandleValidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="form-group">
+            <label for="maNCC">Mã nhà cung cấp</label>
+            <InputText id="maNCC" class="form-control w-25" @bind-Value="currentNCC.Ma_NCC" />
+        </div>
+
+        <div class="form-group">
+            <label for="tenNCC">Tên nhà cung cấp</label>
+            <InputText id="tenNCC" class="form-control w-25" @bind-Value="currentNCC.Ten_NCC" />
+        </div>
+
+        <div class="form-group">
+            <label for="ghiChu">Ghi chú</label>
+            <InputTextArea id="ghiChu" class="form-control w-25" @bind-Value="currentNCC.Ghi_Chu" />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Lưu</button>
+        <button type="button" class="btn btn-secondary" @onclick="Cancel">Hủy</button>
+    </EditForm>
+}
+
+@code {
+    private List<NCC> ncc;
+    private NCC currentNCC = new NCC();
+    private NCC originalNCC;
+    private bool isEditMode = false;
+    private bool isAddMode = false;
+    private string errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadNCC();
+    }
+
+    private async Task LoadNCC()
+    {
+        try
+        {
+            ncc = await NCCService.GetNCCs();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error loading NCC: " + ex.Message);
+        }
+    }
+
+    private void AddNCC()
+    {
+        currentNCC = new NCC();
+        isAddMode = true;
+        isEditMode = false;
+        errorMessage = null;
+    }
+
+    private void EditNCC(NCC nccToEdit)
+    {
+        originalNCC = new NCC
+            {
+                Auto_ID = nccToEdit.Auto_ID,
+                Ma_NCC = nccToEdit.Ma_NCC,
+                Ten_NCC = nccToEdit.Ten_NCC,
+                Ghi_Chu = nccToEdit.Ghi_Chu
+            };
+        currentNCC = new NCC
+            {
+                Auto_ID = nccToEdit.Auto_ID,
+                Ma_NCC = nccToEdit.Ma_NCC,
+                Ten_NCC = nccToEdit.Ten_NCC,
+                Ghi_Chu = nccToEdit.Ghi_Chu
+            };
+        isEditMode = true;
+        isAddMode = false;
+        errorMessage = null;
+    }
+
+    private async Task DeleteNCC(int id)
+    {
+        try
+        {
+            var inUse = await NCCService.IsNCCInUseAsync(id);
+            if (inUse)
+            {
+                errorMessage = "Đơn vị tính đang được sử dụng bởi sản phẩm. Không thể xóa.";
+                return;
+            }
+
+            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Bạn có chắc chắn muốn xóa đơn vị tính này?");
+            if (confirmed)
+            {
+                await NCCService.DeleteNCC(id);
+                await LoadNCC();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error deleting DonViTinh: {ex.Message}";
+        }
+    }
+
+    private async void Cancel()
+    {
+        currentNCC = new NCC
+            {
+                Auto_ID = originalNCC.Auto_ID,
+                Ma_NCC = originalNCC.Ma_NCC,
+                Ten_NCC = originalNCC.Ten_NCC,
+                Ghi_Chu = originalNCC.Ghi_Chu
+            };
+        isEditMode = false;
+        isAddMode = false;
+        errorMessage = null;
+        await LoadNCC();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(currentNCC.Ten_NCC))
+            {
+                errorMessage = "Tên NCC không được để trống.";
+                currentNCC.Ten_NCC = originalNCC.Ten_NCC;
+                return;
+            }
+
+            if (isEditMode)
+            {
+                // Kiểm tra sự thay đổi của Ma_NCC và Ten_NCC
+                bool maNCCChanged = currentNCC.Ma_NCC != originalNCC.Ma_NCC;
+                bool tenNCCChanged = currentNCC.Ten_NCC != originalNCC.Ten_NCC;
+
+                if (!maNCCChanged && !tenNCCChanged && currentNCC.Ghi_Chu == originalNCC.Ghi_Chu)
+                {
+                    // Nếu không có thay đổi, kết thúc chế độ chỉnh sửa
+                    isEditMode = false;
+                    errorMessage = null;
+                    return;
+                }
+
+                if (maNCCChanged || tenNCCChanged)
+                {
+                    var (maNCCExists, tenNCCExists) = await NCCService.NCCExits(currentNCC.Ma_NCC, currentNCC.Ten_NCC);
+
+                    if (maNCCExists && currentNCC.Ma_NCC != originalNCC.Ma_NCC)
+                    {
+                        errorMessage = "Mã NCC đã tồn tại.";
+                        currentNCC.Ma_NCC = originalNCC.Ma_NCC;
+                        return;
+                    }
+
+                    if (tenNCCExists && currentNCC.Ten_NCC != originalNCC.Ten_NCC)
+                    {
+                        errorMessage = "Tên NCC đã tồn tại.";
+                        currentNCC.Ten_NCC = originalNCC.Ten_NCC;
+                        return;
+                    }
+                }
+
+                await NCCService.UpdateNCC(currentNCC);
+            }
+            else if (isAddMode)
+            {
+                var (maNCCExists, tenNCCExists) = await NCCService.NCCExits(currentNCC.Ma_NCC, currentNCC.Ten_NCC);
+
+                if (maNCCExists)
+                {
+                    errorMessage = "Mã NCC đã tồn tại.";
+                    return;
+                }
+
+                if (tenNCCExists)
+                {
+                    errorMessage = "Tên NCC đã tồn tại.";
+                    return;
+                }
+
+                await NCCService.AddNCC(currentNCC);
+            }
+
+            await LoadNCC();
+            isEditMode = false;
+            isAddMode = false;
+            errorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Đã xảy ra lỗi: {ex.Message}";
+            await LoadNCC();
+        }
+    }
+
+}

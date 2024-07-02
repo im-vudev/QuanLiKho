@@ -1,0 +1,274 @@
+﻿@page "/print-xuat/{id:int}"
+@using web.Models
+@using Microsoft.EntityFrameworkCore
+@using System.Threading.Tasks
+@inject ApplicationDbContext DbContext
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+
+
+
+@if (isLoading)
+{
+    <p><em>Loading...</em></p>
+}
+else if (xuatKho == null)
+{
+    <p><em>Không tìm thấy phiếu xuất kho với Id: @Id</em></p>
+}
+else if (khos == null || sanPhams == null || donViTinhs == null)
+{
+    <p><em>Loading additional data...</em></p>
+}
+else
+{
+    <div class="export-form" id="receipt">
+        <div class="header">
+            <div><strong>PHIẾU XUẤT KHO</strong></div>
+            <div>Ngày @xuatKho.NgayXuatKho.ToString("dd tháng MM năm yyyy")</div>
+            <div>Số: @xuatKho.SoPhieuXuatKho</div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">I. Thông tin chung</div>
+            <div class="section-content">
+                <div>Lệnh giao hàng: 425/07</div>
+                <div>Cửa hàng: Khách lẻ</div>
+                <div>Kho: @khos.FirstOrDefault(k => k.Auto_ID == xuatKho.KhoId)?.Ten_Kho</div>
+                <div>Ghi chú: @xuatKho.GhiChu</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">II. Thông tin hàng</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>STT</th>
+                        <th>Mã hàng</th>
+                        <th>Tên hàng</th>
+                        <th>PO</th>
+                        <th>Số chỉ lệnh</th>
+                        <th>SL</th>
+                        <th>ĐVT</th>
+                        <th>Kiểm kê</th>
+                        <th>Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var detail in xuatKho.ChiTietXuatKhos.Select((item, index) => new { item, index }))
+                    {
+                        <tr>
+                            <td>@(detail.index + 1)</td>
+                            <td>@detail.item.SanPham.Ma_San_Pham</td>
+                            <td>@detail.item.SanPham.Ten_San_Pham</td>
+                            <td>PO</td>
+                            <td>SoChiLenh</td>
+                            <td>@detail.item.SLXuat</td>
+                            <td>@GetTenDonViTinh(detail.item.SanPham.Don_Vi_Tinh_ID)</td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                    }
+                    <tr>
+                        <td colspan="5" style="text-align: right;">Tổng</td>
+                        <td>@xuatKho.ChiTietXuatKhos.Sum(d => d.SLXuat)</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <div class="section-title">III. Kết luận</div>
+            <div class="section-content">
+                <div>1.Tổng số lượng thực xuất (viết bằng số): @xuatKho.ChiTietXuatKhos.Sum(d => d.SLXuat)</div>
+                <div>2.Tổng số lượng thực xuất (viết bằng chữ): @ConvertNumberToWords(xuatKho.ChiTietXuatKhos.Sum(d => d.SLXuat))</div>
+                <div class="mb-3">
+                    <label for="exampleFormControlTextarea1" class="form-label">3.Mô tả Khác Biệt</label>
+                    <textarea class="form-control" id="exampleFormControlTextarea1" rows="3"></textarea>
+                </div>
+            </div>
+            
+        </div>
+
+        <div class="footer">
+            <div>Người lập phiếu</div>
+            <div>Người nhận hàng</div>
+            <div>Điều phối</div>
+            <div>Giám đốc</div>
+        </div>
+    </div>
+
+    <button class="print-button" @onclick="PrintReceipt">In phiếu xuất kho</button>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private XuatKho xuatKho;
+    private List<Kho> khos;
+    private List<SanPham> sanPhams;
+    private List<DonViTinh> donViTinhs;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        xuatKho = await DbContext.XuatKhos
+            .Include(x => x.ChiTietXuatKhos)
+            .ThenInclude(ct => ct.SanPham)
+            .FirstOrDefaultAsync(x => x.AutoId == Id);
+
+        khos = await DbContext.Khos.ToListAsync();
+        sanPhams = await DbContext.SanPhams.ToListAsync();
+        donViTinhs = await DbContext.DonViTinhs.ToListAsync();
+
+        isLoading = false;
+    }
+
+    private string GetTenDonViTinh(int donViTinhId)
+    {
+        var donViTinh = donViTinhs.FirstOrDefault(d => d.Auto_ID == donViTinhId);
+        return donViTinh?.Ten_Don_Vi_Tinh ?? "Unknown";
+    }
+
+    public async Task PrintReceipt()
+    {
+        Console.WriteLine("PrintReceipt method called");
+        await JSRuntime.InvokeVoidAsync("printReceipt");
+    }
+
+    private string ConvertNumberToWords(decimal number)
+    {
+        if (number == 0)
+            return "không";
+
+        long integerPart = (long)number;
+        string words = ConvertIntegerToWords(integerPart);
+
+        return words.Trim();
+    }
+
+    private string ConvertIntegerToWords(long number)
+    {
+        if (number == 0)
+            return "không";
+
+        string[] unitsMap = { "không", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín" };
+        string[] tensMap = { "", "mười", "hai mươi", "ba mươi", "bốn mươi", "năm mươi", "sáu mươi", "bảy mươi", "tám mươi", "chín mươi" };
+
+        if (number < 0)
+            return "âm " + ConvertIntegerToWords(Math.Abs(number));
+
+        string words = "";
+
+        if ((number / 1000000000) > 0)
+        {
+            words += ConvertIntegerToWords(number / 1000000000) + " tỷ ";
+            number %= 1000000000;
+        }
+
+        if ((number / 1000000) > 0)
+        {
+            words += ConvertIntegerToWords(number / 1000000) + " triệu ";
+            number %= 1000000;
+        }
+
+        if ((number / 1000) > 0)
+        {
+            words += ConvertIntegerToWords(number / 1000) + " nghìn ";
+            number %= 1000;
+        }
+
+        if ((number / 100) > 0)
+        {
+            words += ConvertIntegerToWords(number / 100) + " trăm ";
+            number %= 100;
+        }
+
+        if (number > 0)
+        {
+            if (words != "")
+                words += (number < 10 || number >= 20) ? " " : "";
+
+            if (number < 10)
+            {
+                words += unitsMap[number];
+            }
+            else if (number < 20)
+            {
+                words += "mười " + unitsMap[number % 10];
+            }
+            else
+            {
+                words += tensMap[number / 10];
+                if ((number % 10) > 0)
+                    words += " " + unitsMap[number % 10];
+            }
+        }
+
+        return words.Trim();
+    }
+}
+<style>
+   
+    .export-form {
+        width: 100%;
+        max-width: 800px;
+        margin: auto;
+        border: 1px solid black;
+        padding: 20px;
+    }
+
+        .export-form .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+            .export-form .header div {
+                margin: 5px 0;
+            }
+
+        .export-form .section {
+            margin-top: 20px;
+        }
+
+        .export-form .section-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .export-form .section-content {
+            margin-left: 20px;
+        }
+
+        .export-form table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .export-form th,
+        .export-form td {
+            border: 1px solid black;
+            padding: 5px;
+            text-align: center;
+        }
+
+        .export-form thead th {
+            background-color: yellow;
+        }
+
+        .export-form .footer {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            text-align: center;
+        }
+
+            .export-form .footer div {
+                width: 24%;
+            }
+</style>

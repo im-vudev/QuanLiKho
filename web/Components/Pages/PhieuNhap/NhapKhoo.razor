@@ -1,0 +1,90 @@
+﻿@page "/nhapkho"
+@using Microsoft.EntityFrameworkCore
+@using Models
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+
+<PageTitle>Danh sách phiếu nhập</PageTitle>
+
+<h3>Danh sách phiếu nhập</h3>
+
+<button class="btn btn-primary" @onclick="AddNewNhapKho">Thêm Phiếu Nhập</button>
+
+@if (nhapKhos == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Số Phiếu Nhập</th>
+                <th>Kho</th>
+                <th>Nhà Cung Cấp</th>
+                <th>Ngày Nhập</th>
+                <th>Ghi Chú</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in nhapKhos)
+            {
+                <tr>
+                    <td>@item.SoPhieuNhapKho</td>
+                    <td>@item.Kho.Ten_Kho</td>
+                    <td>@item.NCC.Ten_NCC</td>
+                    <td>@item.NgayNhapKho.ToString("dd/MM/yyyy")</td>
+                    <td>@item.GhiChu</td>
+                    <td>
+                        <button class="btn btn-warning" @onclick="() => EditDetail(item.Auto_Id)">Hiệu Chỉnh</button>
+                        <button class="btn btn-danger" @onclick="() => DeleteNhapKho(item.Auto_Id)">Xóa</button>
+                        <button class="btn btn-primary" @onclick="() => ViewDetail(item.Auto_Id)">Xem chi tiết</button>
+                        <button class="btn btn-success" @onclick="() => PrintNhapKho(item.Auto_Id)">In</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+
+    </table>
+}
+
+@code {
+    private List<NhapKho> nhapKhos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        nhapKhos = await DbContext.NhapKhos.Include(n => n.Kho).Include(n => n.NCC).ToListAsync();
+    }
+
+    private void AddNewNhapKho()
+    {
+        NavigationManager.NavigateTo("/nhapkho/create");
+    }
+
+    private void EditDetail(int id)
+    {
+        NavigationManager.NavigateTo($"/nhapkho/edit/{id}");
+    }
+
+    private async Task DeleteNhapKho(int id)
+    {
+        var nhapKho = await DbContext.NhapKhos.FindAsync(id);
+        if (nhapKho != null)
+        {
+            DbContext.NhapKhos.Remove(nhapKho);
+            await DbContext.SaveChangesAsync();
+            nhapKhos = await DbContext.NhapKhos.Include(n => n.Kho).Include(n => n.NCC).ToListAsync();
+        }
+    }
+    private void ViewDetail(int id)
+    {
+        NavigationManager.NavigateTo($"/nhapkho/detail/{id}");
+    }
+    private void PrintNhapKho(int id)
+    {
+        NavigationManager.NavigateTo($"/print/{id}");
+    }
+}

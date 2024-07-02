@@ -1,0 +1,293 @@
+﻿@page "/print/{id:int}"
+@using Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+
+<style>
+    .receipt-container {
+        width: 100%;
+        margin: 0 auto;
+        padding: 20px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+    }
+
+    .header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+
+    .header-left, .header-right {
+        width: 48%;
+    }
+
+        .header-left p, .header-right p {
+            margin: 5px 0;
+        }
+
+    .header-right {
+        text-align: right;
+    }
+
+        .header-right p:first-child {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    table, th, td {
+        border: 1px solid black;
+    }
+
+    th, td {
+        padding: 8px;
+        text-align: left;
+    }
+
+    th {
+        background-color: #f2f2f2;
+    }
+
+    .footer {
+        margin-top: 20px;
+    }
+
+        .footer p {
+            margin: 5px 0;
+        }
+
+    .signature {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 20px;
+    }
+
+        .signature span {
+            width: 20%;
+            text-align: center;
+        }
+
+    .print-button {
+        margin-top: 20px;
+    }
+</style>
+
+@if (isLoading)
+{
+    <p><em>Loading...</em></p>
+}
+else if (nhapKho == null)
+{
+    <p><em>Không tìm thấy phiếu nhập kho với Id: @Id</em></p>
+}
+else if (khos == null || nccs == null || sanPhams == null)
+{
+    <p><em>Loading additional data...</em></p>
+}
+else
+{
+    <div class="receipt-container" id="receipt">
+        <div class="header">
+            <div class="header-left">
+                <p>Đơn vị: ........................................</p>
+                <p>Ngày @nhapKho.NgayNhapKho.ToString("dd MMMM yyyy")</p>
+                <p>Số Phiếu Nhập: @nhapKho.SoPhieuNhapKho</p>
+                <p>Họ Tên Người Giao Hàng: @nccs.FirstOrDefault(n => n.Auto_ID == nhapKho.NCC_Id)?.Ten_NCC</p>
+                <p>Theo TK Số: ........................................</p>
+                <p>Nhập Tại Kho: @khos.FirstOrDefault(k => k.Auto_ID == nhapKho.KhoId)?.Ten_Kho</p>
+            </div>
+            <div class="header-right">
+                <p>PHIẾU NHẬP KHO</p>
+                <p>Mẫu Số: 01 - VT</p>
+                <p>(Ban Hành Theo QĐ Số 15/2006/QĐ-BTC</p>
+                <p>Ngày 20/03/2006 Của Bộ Trưởng BTC)</p>
+                <p>Người Giao Hàng: ........................................</p>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>STT</th>
+                    <th>Tên Sản Phẩm</th>
+                    <th>Mã Hàng</th>
+                    <th>Đơn Vị Tính</th>
+                    <th>Số Lượng</th>
+                    <th>Đơn Giá</th>
+                    <th>Thành Tiền</th>
+                </tr>
+                <tr>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var detail in nhapKho.ChiTietNhapKhos.Select((item, index) => new { item, index }))
+                {
+                    <tr>
+                        <td>@(detail.index + 1)</td>
+                        <td>@sanPhams.FirstOrDefault(s => s.Auto_ID == detail.item.SanPhamId)?.Ten_San_Pham</td>
+                        <td>@detail.item.SanPhamId</td>
+                        <td>
+                            @{
+                                var donViTinhId = sanPhams.FirstOrDefault(s => s.Auto_ID == detail.item.SanPhamId)?.Don_Vi_Tinh_ID;
+                                var tenDonViTinh = GetTenDonViTinh(donViTinhId ?? 0);
+                                @tenDonViTinh
+                            }
+                        </td>
+                        <td>@detail.item.SLNhap</td>
+                        <td>@detail.item.DonGiaNhap</td>
+                        <td>@(detail.item.SLNhap * detail.item.DonGiaNhap)</td>
+                    </tr>
+                }
+                <tr>
+                    <td colspan="4" style="text-align: right;">Tổng</td>
+                    <td>@nhapKho.ChiTietNhapKhos.Sum(d => d.SLNhap)</td>
+                    <td></td>
+                    <td>@nhapKho.ChiTietNhapKhos.Sum(d => d.SLNhap * d.DonGiaNhap)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="footer">
+            <p>Tổng Số Tiền (Viết bằng chữ): <strong>@ConvertNumberToWords(nhapKho.ChiTietNhapKhos.Sum(d => d.SLNhap * d.DonGiaNhap))</strong> USD</p>
+            <p>Số Chứng Từ Gốc Kèm Theo: .................................</p>  <span style=" text-align:left"> Ngày ....... Tháng ....... Năm ..........</span>
+            <p class="signature">
+                <span>Người Lập Phiếu (Ký, họ tên): .....................</span>
+                <span>Người Giao Hàng (Ký, họ tên): .....................</span>
+                <span>Thủ Kho (Ký, họ tên): .....................</span>
+                <span>Kế Toán Trưởng (Ký, họ tên): .....................</span>
+            </p>
+        </div>
+    </div>
+
+    <button class="print-button" @onclick="PrintReceipt">In Phiếu Nhập Kho</button>
+   
+}
+
+
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private NhapKho nhapKho;
+    private List<Kho> khos;
+    private List<NCC> nccs;
+    private List<SanPham> sanPhams;
+    private List<DonViTinh> donViTinhs;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        nhapKho = await DbContext.NhapKhos
+            .Include(n => n.ChiTietNhapKhos)
+            .FirstOrDefaultAsync(n => n.Auto_Id == Id);
+
+        khos = await DbContext.Khos.ToListAsync();
+        nccs = await DbContext.NCCs.ToListAsync();
+        sanPhams = await DbContext.SanPhams.ToListAsync();
+        donViTinhs = await DbContext.DonViTinhs.ToListAsync();
+
+        isLoading = false;
+    }
+    private string GetTenDonViTinh(int donViTinhId)
+    {
+        var donViTinh = donViTinhs.FirstOrDefault(d => d.Auto_ID == donViTinhId);
+        return donViTinh?.Ten_Don_Vi_Tinh ?? "Unknown";
+    }
+
+    public async  Task PrintReceipt()
+    {
+        Console.WriteLine("PrintReceipt method called"); 
+        await JSRuntime.InvokeVoidAsync("printReceipt");
+    }
+
+    private string ConvertNumberToWords(decimal number)
+    {
+        if (number == 0)
+            return "không";
+
+        long integerPart = (long)number;
+        string words = ConvertIntegerToWords(integerPart);
+
+        return words.Trim();
+    }
+
+    private string ConvertIntegerToWords(long number)
+    {
+        if (number == 0)
+            return "không";
+
+        string[] unitsMap = { "không", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín" };
+        string[] tensMap = { "", "mười", "hai mươi", "ba mươi", "bốn mươi", "năm mươi", "sáu mươi", "bảy mươi", "tám mươi", "chín mươi" };
+
+        if (number < 0)
+            return "âm " + ConvertIntegerToWords(Math.Abs(number));
+
+        string words = "";
+
+        if ((number / 1000000000) > 0)
+        {
+            words += ConvertIntegerToWords(number / 1000000000) + " tỷ ";
+            number %= 1000000000;
+        }
+
+        if ((number / 1000000) > 0)
+        {
+            words += ConvertIntegerToWords(number / 1000000) + " triệu ";
+            number %= 1000000;
+        }
+
+        if ((number / 1000) > 0)
+        {
+            words += ConvertIntegerToWords(number / 1000) + " nghìn ";
+            number %= 1000;
+        }
+
+        if ((number / 100) > 0)
+        {
+            words += ConvertIntegerToWords(number / 100) + " trăm ";
+            number %= 100;
+        }
+
+        if (number > 0)
+        {
+            if (words != "")
+                words += (number < 10 || number >= 20) ? "lẻ " : "";
+
+            if (number < 10)
+            {
+                words += unitsMap[number];
+            }
+            else if (number < 20)
+            {
+                words += "mười " + unitsMap[number % 10];
+            }
+            else
+            {
+                words += tensMap[number / 10];
+                if ((number % 10) > 0)
+                    words += " " + unitsMap[number % 10];
+            }
+        }
+
+        return words.Trim();
+    }
+
+   
+}
+
+

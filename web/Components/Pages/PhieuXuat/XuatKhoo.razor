@@ -1,0 +1,88 @@
+﻿@page "/xuatkho" 
+@using Microsoft.EntityFrameworkCore
+@using web.Models
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<PageTitle>Danh sách phiếu xuất</PageTitle>
+
+<h3>Danh sách phiếu xuất</h3>
+
+<button class="btn btn-primary" @onclick="AddNewXuatKho">Thêm Phiếu Xuất</button>
+
+@if (xuatKhos == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Số Phiếu Xuất</th>
+                <th>Kho</th>
+                <th>Ngày Xuất</th>
+                <th>Ghi Chú</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in xuatKhos)
+            {
+                <tr>
+                    <td>@item.SoPhieuXuatKho</td>
+                    <td>@item.KhoId</td>
+                    <td>@item.NgayXuatKho.ToString("dd/MM/yyyy")</td>
+                    <td>@item.GhiChu</td>
+                    <td>
+                        <button class="btn btn-warning" @onclick="() => EditDetail(item.AutoId)">Hiệu Chỉnh</button>
+                        <button class="btn btn-danger" @onclick="() => DeleteXuatKho(item.AutoId)">Xóa</button>
+                        <button class="btn btn-primary" @onclick="() => ViewDetail(item.AutoId)">Xem chi tiết</button>
+                        <button class="btn btn-success" @onclick="() => PrintXuatKho(item.AutoId)">In</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<web.Models.XuatKho> xuatKhos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        xuatKhos = await DbContext.XuatKhos.Include(x => x.Kho).ToListAsync();
+    }
+
+    private void AddNewXuatKho()
+    {
+        NavigationManager.NavigateTo("/xuatkho/create");
+    }
+
+    private void EditDetail(int id)
+    {
+        NavigationManager.NavigateTo($"/xuatkho/edit/{id}");
+    }
+
+    private async Task DeleteXuatKho(int id)
+    {
+        var xuatKho = await DbContext.XuatKhos.FindAsync(id);
+        if (xuatKho != null)
+        {
+            DbContext.XuatKhos.Remove(xuatKho);
+            await DbContext.SaveChangesAsync();
+            xuatKhos = await DbContext.XuatKhos.Include(x => x.Kho).ToListAsync();
+        }
+    }
+
+    private void ViewDetail(int id)
+    {
+        NavigationManager.NavigateTo($"/xuatkho/detail/{id}");
+    }
+
+    private void PrintXuatKho(int id)
+    {
+        NavigationManager.NavigateTo($"/print-xuat/{id}");
+    }
+}

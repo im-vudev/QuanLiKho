@@ -1,0 +1,226 @@
+﻿@page "/kho"
+@using web.Models
+@using web.Service
+@inject KhoService KhoService
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<h3>Danh sách Kho</h3>
+
+@if (khoList == null)
+{
+    <p>Đang tải...</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Tên kho</th>
+                <th>Ghi chú</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var kho in khoList)
+            {
+                <tr>
+                    <td>@kho.Ten_Kho</td>
+                    <td>@kho.Ghi_Chu</td>
+                    <td>
+                        <button class="btn btn-primary" @onclick="() => EditKho(kho)">Sửa</button>
+                        <button class="btn btn-danger" @onclick="() => DeleteKho(kho.Auto_ID)">Xóa</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <button class="btn btn-success" @onclick="AddKho">Thêm kho mới</button>
+}
+
+@if (isEditMode || isAddMode)
+{
+    <h3>@(isEditMode ? "Sửa Kho" : "Thêm kho mới")</h3>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">
+            @errorMessage
+        </div>
+    }
+
+    <EditForm Model="currentKho" OnValidSubmit="HandleValidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="form-group">
+            <label for="tenKho">Tên kho</label>
+            <InputText id="tenKho" class="form-control w-25" @bind-Value="currentKho.Ten_Kho" />
+        </div>
+
+        <div class="form-group">
+            <label for="ghiChu">Ghi chú</label>
+            <InputTextArea id="ghiChu" class="form-control w-25" @bind-Value="currentKho.Ghi_Chu" />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Lưu</button>
+        <button type="button" class="btn btn-secondary" @onclick="Cancel">Hủy</button>
+    </EditForm>
+}
+
+@if (!string.IsNullOrEmpty(errorMessage) && !(isEditMode || isAddMode))
+{
+    <div class="alert alert-danger" role="alert">
+        @errorMessage
+    </div>
+}
+
+@code {
+    private List<Kho> khoList = new List<Kho>();
+    private Kho currentKho = new Kho();
+    private Kho originalKho;
+    private bool isEditMode = false;
+    private bool isAddMode = false;
+    private string errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadKho();
+    }
+
+    private async Task LoadKho()
+    {
+        try
+        {
+            khoList = await KhoService.GetKhoAsync() ?? new List<Kho>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error loading Kho: " + ex.Message);
+        }
+    }
+
+    private void AddKho()
+    {
+        currentKho = new Kho();
+        isAddMode = true;
+        isEditMode = false;
+        errorMessage = null;
+    }
+
+    private void EditKho(Kho kho)
+    {
+        originalKho = new Kho
+            {
+                Auto_ID = kho.Auto_ID,
+                Ten_Kho = kho.Ten_Kho,
+                Ghi_Chu = kho.Ghi_Chu
+            };
+        currentKho = new Kho
+            {
+                Auto_ID = kho.Auto_ID,
+                Ten_Kho = kho.Ten_Kho,
+                Ghi_Chu = kho.Ghi_Chu
+            };
+        isEditMode = true;
+        isAddMode = false;
+        errorMessage = null;
+    }
+
+    private async Task DeleteKho(int id)
+    {
+        try
+        {
+            var inUse = await KhoService.IsKhoInUseAsync(id);
+            if (inUse)
+            {
+                errorMessage = "Kho đang được Phân Quyền. Không thể xóa.";
+                return;
+            }
+
+            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Bạn có chắc chắn muốn xóa đơn vị tính này?");
+            if (confirmed)
+            {
+                await KhoService.DeleteKhos(id);
+                await LoadKho();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error deleting Kho: {ex.Message}";
+        }
+    }
+
+    private void Cancel()
+    {
+        currentKho = new Kho
+            {
+                Auto_ID = originalKho.Auto_ID,
+                Ten_Kho = originalKho.Ten_Kho,
+                Ghi_Chu = originalKho.Ghi_Chu
+            };
+        isEditMode = false;
+        isAddMode = false;
+        errorMessage = null;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            if (isEditMode)
+            {
+               
+                bool tenKhoChanged = currentKho.Ten_Kho != originalKho.Ten_Kho;
+
+                if (!tenKhoChanged && currentKho.Ghi_Chu == originalKho.Ghi_Chu)
+                {
+                    
+                    isEditMode = false;
+                    errorMessage = null;
+                    return;
+                }
+
+               
+                if (tenKhoChanged)
+                {
+                    bool khoExists = await KhoService.KhoExits(currentKho.Ten_Kho);
+
+                    if (khoExists)
+                    {
+                        errorMessage = "Tên kho đã tồn tại.";
+                        currentKho.Ten_Kho = originalKho.Ten_Kho; 
+                        return;
+                    }
+                }
+
+                await KhoService.UpdateKho(currentKho);
+            }
+            else if (isAddMode)
+            {
+                
+                bool khoExists = await KhoService.KhoExits(currentKho.Ten_Kho);
+
+                if (khoExists)
+                {
+                    errorMessage = "Tên kho đã tồn tại.";
+                    return;
+                }
+
+                await KhoService.AddKho(currentKho);
+            }
+
+            await LoadKho();
+            isEditMode = false;
+            isAddMode = false;
+            errorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Đã xảy ra lỗi: {ex.Message}";
+            Console.WriteLine("Lỗi xử lý submit: " + ex.Message);
+        }
+    }
+
+}

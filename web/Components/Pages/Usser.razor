@@ -1,0 +1,235 @@
+﻿@page "/users"
+@using web.Models
+@using web.Service
+@inject UserService UserService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+
+<h3>Quản lý người dùng</h3>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-6">
+            @if (isLoading)
+            {
+                <p><em>Đang tải...</em></p>
+            }
+            else
+            {
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Mã đăng nhập</th>
+                            <th>Họ tên</th>
+                            <th>Mật khẩu</th>
+                            <th>Ghi Chú</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in users)
+                        {
+                            <tr>
+                                <td>@user.Ma_Dang_Nhap</td>
+                                <td>@user.Ho_Ten</td>
+                                <td>@user.Mat_Khau</td>
+                                <td>@user.Ghi_Chu</td>
+                                <td>
+                                    <button class="btn btn-primary" @onclick="() => EditUser(user.Auto_ID)">Sửa</button>
+                                    <button class="btn btn-danger" @onclick="() => DeleteUser(user.Auto_ID)">Xóa</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger" role="alert">
+                    @errorMessage
+                </div>
+            }
+        </div>
+        <div class="col-md-6">
+            @if (isCreating || isEditing)
+            {
+                <EditForm Model="user" OnValidSubmit="HandleValidSubmit">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="form-group">
+                        <label for="Ma_Dang_Nhap">Mã đăng nhập</label>
+                        <InputText id="Ma_Dang_Nhap" class="form-control w-50" @bind-Value="user.Ma_Dang_Nhap" />
+                        <ValidationMessage For="@(() => user.Ma_Dang_Nhap)" />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="Mat_Khau">Mật khẩu</label>
+                        <InputText id="Mat_Khau" class="form-control w-50" @bind-Value="user.Mat_Khau" />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="Ho_Ten">Họ tên</label>
+                        <InputText id="Ho_Ten" class="form-control w-50" @bind-Value="user.Ho_Ten" />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="Ghi_Chu">Ghi chú</label>
+                        <InputText id="Ghi_Chu" class="form-control w-50" @bind-Value="user.Ghi_Chu" />
+                    </div>
+                    <br/>
+                    <button type="submit" class="btn btn-primary">Lưu</button>
+                    <button type="button" class="btn btn-secondary" @onclick="Cancel">Hủy</button>
+                </EditForm>
+            }
+            else
+            {
+                <p>
+                    <button class="btn btn-success" @onclick="CreateUser">Tạo người dùng mới</button>
+                </p>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<User> users;
+    private User user = new User();
+    private User originalUser;
+    private bool isLoading = true;
+    private bool isCreating = false;
+    private bool isEditing = false;
+    private string errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        isLoading = true;
+        try
+        {
+            users = await UserService.GetUser();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi khi tải người dùng: {ex.Message}";
+        }
+        isLoading = false;
+    }
+
+    private void CreateUser()
+    {
+        user = new User();
+        isCreating = true;
+        isEditing = false;
+        errorMessage = null;
+    }
+
+    private async Task EditUser(int id)
+    {
+        try
+        {
+            originalUser = await UserService.GetUserByID(id);
+            if (originalUser != null)
+            {
+                user = new User
+                    {
+                        Auto_ID = originalUser.Auto_ID,
+                        Ma_Dang_Nhap = originalUser.Ma_Dang_Nhap,
+                        Mat_Khau = originalUser.Mat_Khau,
+                        Ho_Ten = originalUser.Ho_Ten,
+                        Ghi_Chu = originalUser.Ghi_Chu
+                    };
+
+                isEditing = true;
+                isCreating = false;
+                errorMessage = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi khi tải người dùng: {ex.Message}";
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(user.Ma_Dang_Nhap))
+            {
+                errorMessage = "Mã đăng nhập không được để trống.";
+                return;
+            }
+
+            if (isEditing)
+            {
+                if (user.Ma_Dang_Nhap != originalUser.Ma_Dang_Nhap &&
+                    await UserService.UserExistsAsync(user.Ma_Dang_Nhap))
+                {
+                    errorMessage = "Mã đăng nhập đã tồn tại.";
+                    return;
+                }
+
+                await UserService.UpdateUser(user);
+            }
+            else if (isCreating)
+            {
+                if (await UserService.UserExistsAsync(user.Ma_Dang_Nhap))
+                {
+                    errorMessage = "Mã đăng nhập đã tồn tại.";
+                    return;
+                }
+
+                await UserService.AddUser(user);
+            }
+
+            await LoadUsers();
+            isEditing = false;
+            isCreating = false;
+            errorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Đã xảy ra lỗi: {ex.Message}";
+            await LoadUsers();
+        }
+    }
+
+
+    private void Cancel()
+    {
+        isCreating = false;
+        isEditing = false;
+        errorMessage = null;
+    }
+
+    private async Task DeleteUser(int id)
+    {
+        try
+        {
+            bool userHasPermissions = await UserService.UserHasPermissions(id);
+            if (userHasPermissions)
+            {
+                errorMessage = "Không thể xóa người dùng vì họ đang có phân quyền.";
+                return;
+            }
+
+            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Bạn có chắc chắn muốn xóa người dùng với tên đăng nhập {id}?");
+            if (confirmed)
+            {
+                await UserService.DeleteUser(id);
+                await LoadUsers();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi khi xóa người dùng: {ex.Message}";
+        }
+    }
+}

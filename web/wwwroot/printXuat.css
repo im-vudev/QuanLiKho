@@ -1,0 +1,59 @@
+﻿@media Print{
+    .export-form {
+        width: 100%;
+        max-width: 800px;
+        margin: auto;
+        border: 1px solid black;
+        padding: 20px;
+    }
+
+        .export-form .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+            .export-form .header div {
+                margin: 5px 0;
+            }
+
+        .export-form .section {
+            margin-top: 20px;
+        }
+
+        .export-form .section-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .export-form .section-content {
+            margin-left: 20px;
+        }
+
+        .export-form table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .export-form th,
+        .export-form td {
+            border: 1px solid black;
+            padding: 5px;
+            text-align: center;
+        }
+
+        .export-form thead th {
+            background-color: yellow;
+        }
+
+        .export-form .footer {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            text-align: center;
+        }
+
+            .export-form .footer div {
+                width: 24%;
+            }
+}
+

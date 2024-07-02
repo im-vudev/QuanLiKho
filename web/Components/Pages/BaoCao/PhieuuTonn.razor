@@ -1,0 +1,228 @@
+﻿ @page "/baocaoxuatnhapton"
+@using System.Globalization
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@rendermode InteractiveServer
+
+<h3>Báo cáo xuất nhập tồn</h3>
+
+<div class="search-section">
+    <label for="startDate">Từ ngày:</label>
+    <input type="date" id="startDate" @bind="startDate" />
+
+    <label for="endDate">Đến ngày:</label>
+    <input type="date" id="endDate" @bind="endDate" />
+
+    <button @onclick="SearchReport">Tìm kiếm</button>
+</div>
+
+@if (isLoading)
+{
+    <p>Đang tải dữ liệu...</p>
+}
+else if (reportDetails != null && reportDetails.Any())
+{
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Mã sản phẩm</th>
+                <th>Tên sản phẩm</th>
+                <th>SL Đầu Kỳ</th>
+                <th>SL Nhập</th>
+                <th>SL Xuất</th>
+                <th>SL Cuối Kỳ</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var detail in reportDetails)
+            {
+                <tr>
+                    <td>@detail.MaSanPham</td>
+                    <td>@detail.TenSanPham</td>
+                    <td>@detail.SL_DauKy</td>
+                    <td>@detail.SL_Nhap</td>
+                    <td>@detail.SL_Xuat</td>
+                    <td>@detail.SL_CuoiKy</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p>Không tìm thấy dữ liệu.</p>
+}
+
+
+@code {
+    private DateTime? startDate;
+    private DateTime? endDate;
+    private bool isLoading = false;
+    private List<ReportDetailViewModel> reportDetails;
+
+    protected override async Task OnInitializedAsync()
+    {
+        startDate = DateTime.Today.AddDays(-4);
+        endDate = DateTime.Today;
+        await SearchReport();
+    }
+
+    private async Task SearchReport()
+    {
+        if (startDate == null || endDate == null)
+        {
+            return;
+        }
+
+        isLoading = true;
+        reportDetails = new List<ReportDetailViewModel>();
+
+       
+        var nhapKhos = await DbContext.NhapKhoRawDatas
+            .Include(nk => nk.NhapKho)
+            .Include(nk => nk.SanPham)
+            .Where(nk => nk.NhapKho.NgayNhapKho <= endDate)
+            .ToListAsync();
+
+        var xuatKhos = await DbContext.XuatKhoRawDatas
+            .Include(xk => xk.XuatKho)
+            .Include(xk => xk.SanPham)
+            .Where(xk => xk.XuatKho.NgayXuatKho <= endDate)
+            .ToListAsync();
+
+        var groupedNhap = nhapKhos.GroupBy(nk => nk.SanPhamId);
+        var groupedXuat = xuatKhos.GroupBy(xk => xk.SanPhamId);
+
+        foreach (var group in groupedNhap)
+        {
+            var sanPhamId = group.Key;
+            var sanPham = group.First().SanPham;
+
+            
+            var slNhap = group.Where(nk => nk.NhapKho.NgayNhapKho >= startDate && nk.NhapKho.NgayNhapKho <= endDate).Sum(nk => nk.SLNhap);
+
+            
+            var slXuat = groupedXuat.FirstOrDefault(xk => xk.Key == sanPhamId)?
+                .Where(xk => xk.XuatKho.NgayXuatKho >= startDate && xk.XuatKho.NgayXuatKho <= endDate).Sum(xk => xk.SLXuat) ?? 0;
+
+           
+            var slDauKy = await GetSLDauKy(sanPhamId, startDate.Value);
+
+            
+            var slCuoiKy = slDauKy + slNhap - slXuat;
+
+            reportDetails.Add(new ReportDetailViewModel
+                {
+                    MaSanPham = sanPham.Ma_San_Pham,
+                    TenSanPham = sanPham.Ten_San_Pham,
+                    SL_DauKy = slDauKy,
+                    SL_Nhap = slNhap,
+                    SL_Xuat = slXuat,
+                    SL_CuoiKy = slCuoiKy
+                });
+        }
+
+        isLoading = false;
+    }
+
+    private async Task<int> GetSLDauKy(int sanPhamId, DateTime startDate)
+    {
+       
+        var slNhapTruoc = await DbContext.NhapKhoRawDatas
+            .Where(nk => nk.SanPhamId == sanPhamId && nk.NhapKho.NgayNhapKho < startDate)
+            .SumAsync(nk => nk.SLNhap);
+
+        
+        var slXuatTruoc = await DbContext.XuatKhoRawDatas
+            .Where(xk => xk.SanPhamId == sanPhamId && xk.XuatKho.NgayXuatKho < startDate)
+            .SumAsync(xk => xk.SLXuat);
+
+      
+        var slDauKy = slNhapTruoc - slXuatTruoc;
+
+        return slDauKy;
+    }
+
+
+    public class ReportDetailViewModel
+    {
+        public string MaSanPham { get; set; }
+        public string TenSanPham { get; set; }
+        public int SL_DauKy { get; set; }
+        public int SL_Nhap { get; set; }
+        public int SL_Xuat { get; set; }
+        public int SL_CuoiKy { get; set; }
+    }
+}
+
+<style>
+    .search-section {
+        margin-bottom: 20px;
+    }
+
+        .search-section label {
+            margin-right: 10px;
+        }
+
+        .search-section input {
+            margin-right: 20px;
+            padding: 5px;
+            font-size: 14px;
+        }
+
+        .search-section button {
+            padding: 7px 15px;
+            font-size: 14px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+            .search-section button:hover {
+                background-color: #45a049;
+            }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+
+        .data-table th,
+        .data-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .data-table th {
+            padding-top: 12px;
+            padding-bottom: 12px;
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .data-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .data-table tr:hover {
+            background-color: #ddd;
+        }
+
+        .data-table th,
+        .data-table td {
+            text-align: center;
+        }
+
+        .data-table td {
+            font-size: 14px;
+        }
+
+    p {
+        font-size: 16px;
+        color: #555;
+    }
+</style>

@@ -1,0 +1,140 @@
+﻿@page "/xuatkho/detail/{id:int}"
+@using Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+@if (xuatKho == null || khos == null || sanPhams == null || donViTinhs == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="container">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4 class="card-title">Thông Tin Phiếu Xuất</h4>
+                        <div class="form-group row">
+                            <label class="col-sm-4 col-form-label">Số Phiếu Xuất:</label>
+                            <div class="col-sm-8">
+                                <span>@xuatKho.SoPhieuXuatKho</span>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label class="col-sm-4 col-form-label">Kho:</label>
+                            <div class="col-sm-8">
+                                <span>@khos.FirstOrDefault(k => k.Auto_ID == xuatKho.KhoId)?.Ten_Kho</span>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label class="col-sm-4 col-form-label">Ngày Xuất:</label>
+                            <div class="col-sm-8">
+                                <span>@xuatKho.NgayXuatKho.ToString("dd/MM/yyyy")</span>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label class="col-sm-4 col-form-label">Ghi Chú:</label>
+                            <div class="col-sm-8">
+                                <span>@xuatKho.GhiChu</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4 class="card-title">Chi Tiết Phiếu Xuất</h4>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Mã Sản Phẩm</th>
+                                    <th>Tên Sản Phẩm</th>
+                                    <th> Đơn Vị Tính</th>
+                                    <th>Số Lượng</th>
+                                    <th>Đơn Giá</th>
+                                    <th>Trị Giá</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var detail in xuatKho.ChiTietXuatKhos)
+                                {
+                                    <tr>
+                                        <td>@detail.SanPhamId</td>
+                                        <td>@sanPhams.FirstOrDefault(s => s.Auto_ID == detail.SanPhamId)?.Ten_San_Pham</td>
+                                        <td>
+                                            @{
+                                                var donViTinhId = sanPhams.FirstOrDefault(s => s.Auto_ID == detail.SanPhamId)?.Don_Vi_Tinh_ID;
+                                                var tenDonViTinh = GetTenDonViTinh(donViTinhId ?? 0);
+                                                @tenDonViTinh
+                                            }
+                                        </td>
+                                        <td>@detail.SLXuat</td>
+                                        <td>@detail.DonGiaXuat</td>
+                                        <td>@(detail.SLXuat * detail.DonGiaXuat)</td>
+                                        <td><button class="btn btn-danger" @onclick="() => DeleteDetail(detail)">Xóa</button></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                        <button class="btn btn-primary" @onclick="EditDetail">Hiệu Chỉnh Chi Tiết</button>
+                        <button class="btn btn-danger" @onclick="DeleteAllDetails">Xóa Tất Cả Chi Tiết</button>
+                    </div>
+              </div>
+          </div>
+      </div>
+  </div>
+    
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private XuatKho xuatKho;
+    private List<Kho> khos;
+    private List<SanPham> sanPhams;
+    private List<DonViTinh> donViTinhs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        xuatKho = await DbContext.XuatKhos
+            .Include(x => x.ChiTietXuatKhos)
+            .FirstOrDefaultAsync(x => x.AutoId == Id);
+
+        khos = await DbContext.Khos.ToListAsync();
+        sanPhams = await DbContext.SanPhams.ToListAsync();
+        donViTinhs = await DbContext.DonViTinhs.ToListAsync();
+    }
+
+    private string GetTenDonViTinh(int donViTinhId)
+    {
+        var donViTinh = donViTinhs.FirstOrDefault(d => d.Auto_ID == donViTinhId);
+        return donViTinh?.Ten_Don_Vi_Tinh ?? "Unknown";
+    }
+
+    private async Task DeleteDetail(XuatKhoRawData detail)
+    {
+        DbContext.XuatKhoRawDatas.Remove(detail);
+        await DbContext.SaveChangesAsync();
+        NavigationManager.NavigateTo($"/xuatkho/detail/{Id}", forceLoad: true);
+    }
+
+    private void EditDetail()
+    {
+        NavigationManager.NavigateTo($"/xuatkho/edit-detail/{Id}");
+    }
+    private async Task DeleteAllDetails()
+    {
+        if (xuatKho?.ChiTietXuatKhos != null)
+        {
+            DbContext.XuatKhoRawDatas.RemoveRange(xuatKho.ChiTietXuatKhos);
+            await DbContext.SaveChangesAsync();
+            NavigationManager.NavigateTo($"/xuatkho/detail/{Id}", forceLoad: true);
+        }
+    }
+}
